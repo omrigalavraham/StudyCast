@@ -2,9 +2,10 @@
 
 # <img src="https://img.icons8.com/color/48/000000/podcast.png" width="36"/> StudyCast AI
 
+### **הפוך כל מצגת לחוויית למידה אישית**
 ### **Turn Any Presentation Into a Personalized Learning Experience**
 
-*AI-Powered Study Platform | Hebrew-First | Built for Students*
+*פלטפורמת למידה מבוססת AI | עברית מלאה | נבנה עבור סטודנטים*
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -15,25 +16,149 @@
 
 ---
 
-**StudyCast AI** transforms your lecture slides and notes into a complete study ecosystem — summaries, podcasts, flashcards, quizzes, and progress tracking — all powered by Google Gemini AI.
+**StudyCast AI** הופך את השקפים וההרצאות שלך למערכת למידה שלמה — סיכומים, פודקאסטים, כרטיסיות, בחנים ומעקב התקדמות — הכל מונע על ידי Google Gemini AI.
 
-[Features](#-features) · [How It Works](#-how-it-works) · [Tech Stack](#-tech-stack) · [Getting Started](#-getting-started) · [Architecture](#-architecture)
+[עברית](#-מה-זה-studycast) · [Features](#-features) · [How It Works](#-how-it-works) · [Tech Stack](#-tech-stack) · [Getting Started](#-getting-started)
 
 </div>
 
 ---
 
-## The Problem
+<div dir="rtl">
 
-Students spend hours reading through slides, making summaries, and creating study materials. What if AI could do all of that — and more — in minutes?
+## 🇮🇱 מה זה StudyCast?
 
-## The Solution
+### הבעיה
+סטודנטים מבלים שעות בקריאת שקפים, כתיבת סיכומים ויצירת חומרי לימוד. מה אם AI היה יכול לעשות את כל זה — ויותר — בדקות?
 
-**StudyCast AI** takes a single presentation file and generates an entire learning suite:
+### הפתרון
+**StudyCast AI** לוקח קובץ מצגת אחד ויוצר סביבת למידה מלאה:
+
+</div>
 
 ```
-📄 Upload Slides  →  🧠 AI Analysis  →  📝 Summary + 🎙️ Podcast + 🃏 Flashcards + 📊 Quiz + 📈 Progress
+📄 העלאת שקפים  ←  🧠 ניתוח AI  ←  📝 סיכום + 🎙️ פודקאסט + 🃏 כרטיסיות + 📊 בוחן + 📈 התקדמות
 ```
+
+<div dir="rtl">
+
+---
+
+## ✨ יכולות המערכת
+
+### 🎙️ יצירת פודקאסט עם AI
+> *ההרצאות שלך, כשיחה מרתקת*
+
+העלה שקפים וקבל שיחת פודקאסט מלאה בין שני מגישים שדנים בחומר. ה-AI יוצר דיאלוג טבעי וזורם שמסביר מושגים כאילו חבר מלמד אותך.
+
+- 🔊 הקראה טבעית בעברית עם קולות Google Gemini
+- 👫 פורמט דו-מגישים (קול גברי ונשי)
+- 📜 תמלול מסונכרן עם גלילה אוטומטית
+- ⚡ שליטה במהירות השמעה (0.75x - 2x)
+- 🔄 אפשרות ליצירה מחדש של האודיו
+
+### 📝 סיכומים חכמים
+> *שעות של חומר, מזוקקות לדקות*
+
+ה-AI מייצר סיכומים מקיפים ומוכנים למבחן עם עיצוב מובנה:
+
+- **תמונה גדולה** — סקירה ב-2-3 משפטים
+- **מושגי מפתח** — חילוץ והסבר של כל מושג בנפרד
+- **סיכום מפורט** — מסמך מלא עם דוגמאות, מונחים מודגשים, וסעיפים ממוספרים
+- שני מצבי עיבוד: **הרצאה מלאה** (ניתוח מעמיק) או **סיכום מהיר**
+
+### 🖍️ הדגשות למבחן
+> *סמן את מה שחשוב באמת*
+
+בחר כל טקסט בסיכום וסמן אותו כ"חשוב למבחן". כל ההדגשות מרוכזות בטאב ייעודי לחזרה ממוקדת.
+
+- ✏️ בחירת טקסט עם כפתור צף
+- 💛 הדגשה צהובה ויזואלית
+- 📋 טאב "למבחן" ייעודי עם כל הקטעים המסומנים
+- 🗑️ מחיקה בלחיצה אחת
+
+### 🃏 כרטיסיות חכמות
+> *למידה אקטיבית, מונעת AI*
+
+כרטיסיות שנוצרות אוטומטית ממושגי ההרצאה עם מערכת חזרה מרווחת:
+
+- 🤖 AI מייצר כרטיסיות ממושגי המפתח
+- 🔄 אנימציית הפיכה לחשיפת תשובות
+- ✅ סימון "ידוע" או "דורש חזרה"
+- 🔁 מצב ניסיון חוזר למושגים קשים
+- 📊 מעקב התקדמות ויזואלי
+
+### 📊 מערכת בחנים אדפטיבית
+> *בדוק את עצמך, עקוב אחרי הידע שלך*
+
+בחנים שנוצרים על ידי AI ומותאמים לרמת מורכבות ההרצאה:
+
+- **3 רמות קושי**: בסיסי (זכירה) ← הבנה (קשרים) ← יישום (תרחישים)
+- **מספר שאלות גמיש**: 3-10 להרצאות, 5-30 למטה-הרצאות
+- ✅ משוב מיידי עם הסבר לכל תשובה
+- 🔀 סדר תשובות אקראי למניעת שינון דפוסים
+- 📈 מעקב ציונים וסקירת ביצועים
+
+### 📈 ניתוח התקדמות למידה
+> *דע בדיוק איפה אתה עומד*
+
+מעקב בזמן אמת אחרי רמת שליטה בכל מושג לאורך כל פעילויות הלמידה:
+
+- רמות שליטה למושג: לא התחיל ← חלש ← לומד ← חזק ← שולט
+- פסי התקדמות ויזואליים ואחוזים
+- זיהוי נקודות תורפה והמלצה לתרגול ממוקד
+- שילוב נתונים מבחנים וכרטיסיות
+
+### 🧠 מטה-הרצאות
+> *שלב מספר הרצאות ליחידת לימוד אחת*
+
+בחר 2-10 הרצאות ומזג אותן למטה-הרצאה מקיפה:
+
+- 🤖 AI מזהה ומסיר כפילויות בין מושגים
+- 🔗 יוצר סיכומים אחודים שמראים קשרים בין נושאים
+- 🎯 מושלם ללימוד יחידות שלמות לפני מבחן
+- ✨ עיצוב גראדיינט זהוב יוקרתי שמבדיל ממטה-הרצאות רגילות
+
+### 💬 עוזר AI אישי
+> *המורה הפרטי שלך, זמין 24/7*
+
+שאל שאלות על חומר ההרצאה וקבל הסברים מותאמי הקשר בזמן אמת:
+
+- 💬 היסטוריית שיחות מלאה
+- 🎯 תשובות מבוססות הקשר על תוכן ההרצאה
+- 💾 שמירת הסברים מועילים כתובנות אישיות
+- 👆 לחיצה על כל שורה בתמלול לשאלת "תסביר לי את זה"
+
+### 🔍 חיפוש חכם
+> *מצא כל דבר, בכל ההרצאות שלך*
+
+חיפוש חוצה כותרות, סיכומים, מושגים והערות אישיות — עם ניווט חכם למיקום המדויק של ההתאמה.
+
+### 🌙 ממשק מעוצב
+> *תוכנן כדי שהלמידה תרגיש טוב*
+
+- עיצוב "זכוכית עצבית" עם גראדיינטים ואפקטי טשטוש
+- מצב כהה מלא
+- תצוגה רספונסיבית (נייד ← דסקטופ)
+- ממשק RTL מותאם לעברית
+- אנימציות חלקות לאורך כל הממשק
+
+---
+
+## 📋 טבלת יכולות
+
+| יכולת | סוג | מטרה |
+|-------|------|------|
+| 💡 מושגים | ויזואלי | כרטיסי מושגים מרכזיים בקליק |
+| 📝 סיכום | קריאה | סיכום מפורט עם הדגשות |
+| 💬 צ'אט | אינטראקטיבי | שאלות ותשובות עם AI |
+| 🃏 כרטיסיות | למידה אקטיבית | תרגול עם חזרה מרווחת |
+| 📊 בוחן | הערכה | מבחנים עם קושי מותאם |
+| 📈 התקדמות | אנליטיקה | מעקב שליטה וזיהוי חולשות |
+| 🖍️ למבחן | חזרה | ריכוז כל הקטעים המסומנים |
+| 💡 תובנות | הערות | הסברים אישיים שנשמרו |
+
+</div>
 
 ---
 
@@ -65,21 +190,10 @@ The AI generates comprehensive, exam-ready summaries with structured formatting:
 
 Select any text in the summary and mark it as "important for exam." All highlights are collected in a dedicated tab for focused review.
 
-- Text selection with floating action button
-- Yellow highlight visualization
-- Dedicated "For Exam" tab with all marked passages
-- One-click delete
-
 ### 🃏 Smart Flashcards
 > *Active recall, powered by AI*
 
-Auto-generated flashcards from lecture concepts with a spaced repetition system:
-
-- AI generates cards from key concepts
-- Flip animation to reveal answers
-- Mark as "Known" or "Need Review"
-- Retry mode for struggling concepts
-- Visual progress tracking
+Auto-generated flashcards from lecture concepts with a spaced repetition system.
 
 ### 📊 Adaptive Quiz System
 > *Test yourself, track your mastery*
@@ -90,51 +204,25 @@ AI-generated quizzes that adapt to lecture complexity:
 - **Flexible question count**: 3-10 for lectures, 5-30 for meta-lectures
 - Instant feedback with explanations for every answer
 - Randomized answer order to prevent pattern memorization
-- Score tracking and performance review
 
 ### 📈 Learning Progress Analytics
 > *Know exactly where you stand*
 
-Real-time tracking of concept mastery across all learning activities:
-
-- Per-concept mastery levels (Not Started → Weak → Learning → Strong → Mastered)
-- Visual progress bars and percentages
-- Identifies weak areas and suggests focused practice
-- Integrates data from quizzes and flashcards
+Real-time tracking of concept mastery across all learning activities.
 
 ### 🧠 Meta-Lectures
 > *Combine multiple lectures into one study unit*
 
-Select 2-10 lectures and merge them into a comprehensive meta-lecture:
-
-- AI intelligently deduplicates overlapping concepts
-- Creates unified summaries showing cross-topic relationships
-- Perfect for studying entire units before an exam
-- Premium gold gradient design to distinguish from regular lectures
+Select 2-10 lectures and merge them into a comprehensive meta-lecture with AI deduplication and cross-topic synthesis.
 
 ### 💬 AI Chat Assistant
 > *Your personal tutor, available 24/7*
 
-Ask questions about the lecture material and get instant, context-aware explanations:
-
-- Full conversation history
-- Context-aware answers based on lecture content
-- Save helpful explanations as personal insights
-- Click any line in the podcast transcript to ask "explain this"
+Ask questions about the lecture material and get instant, context-aware explanations.
 
 ### 🔍 Smart Search
-> *Find anything, across all your lectures*
 
 Search across titles, summaries, concepts, and personal notes — with smart navigation to the exact match location.
-
-### 🌙 Beautiful UI
-> *Designed to make studying feel good*
-
-- Neural glass design with gradients and blur effects
-- Full dark mode support
-- Responsive layout (mobile → desktop)
-- RTL-first Hebrew interface
-- Smooth animations throughout
 
 ---
 
@@ -169,7 +257,7 @@ Search across titles, summaries, concepts, and personal notes — with smart nav
 | **Storage** | Supabase Storage | Audio file hosting |
 | **Auth** | Supabase Auth | User authentication |
 | **Build** | Vite 6 | Fast development and bundling |
-| **Deploy** | Netlify | Edge deployment with SSR |
+| **Deploy** | Netlify | Edge deployment |
 
 ### AI Models Used
 
@@ -299,6 +387,12 @@ This project is open source and available under the [MIT License](LICENSE).
 ---
 
 <div align="center">
+
+<div dir="rtl">
+
+### נבנה עם ❤️ עבור סטודנטים שרוצים ללמוד חכם, לא קשה.
+
+</div>
 
 ### Built with ❤️ for students who want to study smarter, not harder.
 
