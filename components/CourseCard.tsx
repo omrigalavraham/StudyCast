@@ -4,14 +4,14 @@ import { Course } from '../types';
 export const CourseCard: React.FC<{ course: Course; onClick: () => void; onEdit: (course: Course) => void; onDelete: (course: Course) => void }> = ({ course, onClick, onEdit, onDelete }) => (
     <div
         onClick={onClick}
-        className="group relative cursor-pointer"
+        className="group relative cursor-pointer transition-transform duration-300 hover:-translate-y-2"
     >
-        {/* Glow Effect */}
-        <div className={`absolute -inset-0.5 rounded-[32px] opacity-0 group-hover:opacity-75 transition duration-500 blur-xl ${course.color.replace('bg-', 'bg-opacity-50 bg-')}`}></div>
+        {/* Glow Effect - Perfectly Centered & Smoother */}
+        <div className={`absolute -inset-4 rounded-[40px] opacity-0 group-hover:opacity-40 transition duration-500 blur-[50px] ${course.color}`}></div>
 
-        <div className="relative bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-[30px] p-8 h-72 flex flex-col justify-between overflow-hidden shadow-2xl transition-all duration-300 transform group-hover:-translate-y-2">
-            {/* Decorative Gradient Background */}
-            <div className={`absolute top-0 right-0 w-48 h-48 ${course.color} opacity-10 rounded-full blur-[60px] -mr-16 -mt-16 transition-opacity group-hover:opacity-20`}></div>
+        <div className="relative bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-[30px] p-8 h-72 flex flex-col justify-between overflow-hidden shadow-2xl">
+            {/* Decorative Gradient Background - Full Fill */}
+            <div className={`absolute inset-0 ${course.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}></div>
 
             <div>
                 <div className="flex justify-between items-start mb-6">

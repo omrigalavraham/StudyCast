@@ -3,6 +3,9 @@
    ======================================== */
 @import "tailwindcss";
 
+/* Dark mode: use class strategy instead of media query (Tailwind v4) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Fade in animation */
 @keyframes fadeInUp {
   from {
@@ -68,4 +71,46 @@
 
 .float-animation {
   animation: float 3s ease-in-out infinite;
+}
+
+/* ========================================
+   Meta-Lecture Premium Gradient Animation
+   ======================================== */
+
+@keyframes metaGradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.meta-lecture-gradient {
+  background: linear-gradient(
+    -45deg,
+    rgba(251, 191, 36, 0.15),
+    rgba(245, 158, 11, 0.2),
+    rgba(252, 211, 77, 0.15),
+    rgba(234, 179, 8, 0.2),
+    rgba(251, 191, 36, 0.15)
+  );
+  background-size: 300% 300%;
+  animation: metaGradientMove 6s ease infinite;
+}
+
+.dark .meta-lecture-gradient {
+  background: linear-gradient(
+    -45deg,
+    rgba(251, 191, 36, 0.08),
+    rgba(245, 158, 11, 0.12),
+    rgba(252, 211, 77, 0.08),
+    rgba(234, 179, 8, 0.12),
+    rgba(251, 191, 36, 0.08)
+  );
+  background-size: 300% 300%;
+  animation: metaGradientMove 6s ease infinite;
 }

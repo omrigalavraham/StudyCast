@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
-import { QuizSession, QuizQuestion, QuizDifficulty } from '../types';
+import { QuizSession, QuizQuestion, QuizDifficulty, Lecture } from '../types';
 
 interface QuizPanelProps {
     quizState: QuizSession;
+    lecture: Lecture;
     onStartQuiz: (settings: { difficulty: QuizDifficulty, questionCount: number }) => void;
     onAnswer: (questionId: string, answerIdx: number) => void;
     onReset: () => void;
     onNewQuiz: () => void;
 }
 
-export const QuizPanel: React.FC<QuizPanelProps> = ({ quizState, onStartQuiz, onAnswer, onReset, onNewQuiz }) => {
+export const QuizPanel: React.FC<QuizPanelProps> = ({ quizState, lecture, onStartQuiz, onAnswer, onReset, onNewQuiz }) => {
     // All hooks must be called at the top level BEFORE any early returns (React Rules of Hooks)
     const [difficulty, setDifficulty] = useState<QuizDifficulty>('MEDIUM');
-    const [count, setCount] = useState(5);
+    // Default to more questions for meta-lectures
+    const isMetaLecture = lecture.lectureType === 'META';
+    const defaultCount = isMetaLecture ? 10 : 5;
+    const [count, setCount] = useState(defaultCount);
     const [viewingResult, setViewingResult] = useState(false);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
@@ -21,30 +25,28 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({ quizState, onStartQuiz, on
     const userAnswer = question ? quizState.userAnswers[question.id] : undefined;
     const isAnswered = userAnswer !== undefined;
 
-    // Reset state when quiz restarts
+    // Reset state when quiz status changes
     React.useEffect(() => {
         if (quizState.status === 'SETUP') {
             setViewingResult(false);
             setCurrentQuestionIndex(0);
+            // Reset count to default for lecture type when returning to SETUP
+            setCount(isMetaLecture ? 10 : 5);
+            setDifficulty('MEDIUM');
+        } else if (quizState.status === 'ACTIVE') {
+            // When quiz becomes active (new quiz started), reset navigation state
+            setViewingResult(false);
+            setCurrentQuestionIndex(0);
         }
-    }, [quizState.status]);
+    }, [quizState.status, isMetaLecture]);
 
-    // Sync currentQuestionIndex when questions change (e.g., new quiz loaded)
+    // Sync viewing state when user answer changes (for page reload scenarios)
     React.useEffect(() => {
-        if (quizState.status === 'ACTIVE' && quizState.questions.length > 0) {
-            const firstUnanswered = quizState.questions.findIndex(q => quizState.userAnswers[q.id] === undefined);
-            if (firstUnanswered !== -1 && firstUnanswered !== currentQuestionIndex) {
-                setCurrentQuestionIndex(firstUnanswered);
-            }
+        if (quizState.status === 'ACTIVE' && question) {
+            const hasAnswered = quizState.userAnswers[question.id] !== undefined;
+            setViewingResult(hasAnswered);
         }
-    }, [quizState.questions, quizState.status]);
-
-    // Sync local viewing state in case of reload
-    React.useEffect(() => {
-        if (isAnswered && !viewingResult) {
-            setViewingResult(true);
-        }
-    }, [isAnswered, viewingResult]);
+    }, [quizState.status, question, quizState.userAnswers]);
 
     // --- Render: SETUP ---
     if (quizState.status === 'SETUP') {
@@ -77,11 +79,11 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({ quizState, onStartQuiz, on
                         ))}
                     </div>
 
-                    {/* Count */}
-                    <div className="flex items-center justify-center gap-4">
+                    {/* Count - More options for meta-lectures */}
+                    <div className="flex flex-col items-center gap-3">
                         <span className="text-sm font-bold text-slate-500">מספר שאלות:</span>
-                        <div className="flex gap-2">
-                            {[3, 5, 10].map(c => (
+                        <div className="flex gap-2 flex-wrap justify-center">
+                            {(lecture.lectureType === 'META' ? [5, 10, 20, 30] : [3, 5, 10]).map(c => (
                                 <button
                                     key={c}
                                     onClick={() => setCount(c)}
@@ -94,6 +96,11 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({ quizState, onStartQuiz, on
                                 </button>
                             ))}
                         </div>
+                        {lecture.lectureType === 'META' && (
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                                מטה-הרצאה מכילה יותר חומר - מומלץ יותר שאלות
+                            </p>
+                        )}
                     </div>
 
                     <button
@@ -188,10 +195,19 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({ quizState, onStartQuiz, on
     };
 
     const handleNext = () => {
-        setViewingResult(false);
-        // If this was the last question, store logic will handle status change to COMPLETED.
-        // We just need to increment index if there are more.
-        if (currentQuestionIndex < quizState.questions.length - 1) {
+        // Check if this is the last question
+        const isLastQuestion = currentQuestionIndex === quizState.questions.length - 1;
+
+        if (isLastQuestion) {
+            // Last question - quiz should already be COMPLETED by answerQuizQuestion
+            // Just reset viewing state, the COMPLETED status will trigger the results screen
+            setViewingResult(false);
+            // The quiz status change to COMPLETED happens in useQuizActions.answerQuizQuestion
+            // which is called when the user selects an answer. The UI will automatically
+            // switch to the COMPLETED view because quizState.status === 'COMPLETED'
+        } else {
+            // Not the last question - move to next
+            setViewingResult(false);
             setCurrentQuestionIndex(prev => prev + 1);
         }
     };

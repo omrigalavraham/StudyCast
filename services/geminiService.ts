@@ -71,15 +71,51 @@ export const analyzePresentation = async (
   תפקידך הוא להיות מורה פרטי ברמה עולמית ועורך תוכן פדגוגי.
   ${specificInstructions}
 
-  המשימה שלך היא ליצור שני דברים שמקושרים זה לזה בקשר הדוק:
+  המשימה שלך היא ליצור שלושה דברים שמקושרים זה לזה בקשר הדוק:
   1. "summaryPoints": רשימה של כרטיסיות ידע (Concepts). עליך לפרק את החומר לנקודות מפתח ברורות.
-  2. "script": תסריט לפודקאסט לימודי בין "${studentName}" (הסטודנט${userGender === 'female' ? 'ית' : ''}) ו"${hostName}" (המנח${userGender === 'female' ? 'ה' : 'ה'} שמסביר${userGender === 'female' ? '' : 'ה'}).
+  2. "detailedSummary": סיכום מפורט וארוך של כל החומר (ראה הנחיות למטה).
+  3. "script": תסריט לפודקאסט לימודי בין "${studentName}" (הסטודנט${userGender === 'female' ? 'ית' : ''}) ו"${hostName}" (המנח${userGender === 'female' ? 'ה' : 'ה'} שמסביר${userGender === 'female' ? '' : 'ה'}).
 
   **חשוב מאוד - התאמת מגדר:**
   - ${studentName} הוא ${userGender === 'female' ? 'נקבה' : 'זכר'}. השתמש בפניות מתאימות (${userGender === 'female' ? 'את, לך, שלך' : 'אתה, לך, שלך'}).
   - ${hostName} הוא ${userGender === 'female' ? 'זכר' : 'נקבה'}. השתמש בפניות מתאימות.
 
-  חוקים קריטיים לתסריט (Script Rules):
+  **הנחיות לסיכום המפורט (detailedSummary) - זה החלק הכי חשוב!**
+
+  כתוב סיכום מקיף, מפורט ומובנה של כל החומר מהמצגת - ערוך במיוחד כהכנה למבחן.
+  הסיכום צריך לעבור על כל הנושאים, כולל הסברים טכניים ודוגמאות פשוטות.
+
+  **מבנה הסיכום (חובה לעקוב!):**
+
+  1. **כותרות ממוספרות לכל נושא עיקרי:**
+     פורמט: "1. שם הנושא" עם קו הפרדה (---) לפניו
+
+  2. **טקסט זורם עם הסברים מפורטים:**
+     - הסבר מלא של כל נושא, לא רק הגדרות
+     - **מושגים חשובים בבולד** בתוך המשפטים
+     - הקשרים בין הנושאים
+
+  3. **דוגמאות פשוטות:**
+     לכל נושא תן דוגמה מהחיים (כמו: "דוגמה פשוטה: כשאתה קונה באתר...")
+
+  4. **רשימות עם נקודות (•) כשמפרטים פריטים:**
+     • פריט ראשון
+     • פריט שני
+
+  5. **סיכום בסוף:**
+     נקודות חשובות למבחן עם bullet points
+
+  **אורך:** 800-2000 מילים (תלוי בכמות החומר)
+
+  **שפה:** עברית פשוטה וברורה, הסברים כאילו אתה מלמד חבר
+
+  **פורמט טכני:**
+  - השתמש ב-\\n\\n להפרדת פסקאות
+  - השתמש ב-**בולד** למושגים חשובים
+  - השתמש ב-• לרשימות
+  - השתמש ב--- לקווי הפרדה בין נושאים
+
+  **חוקים קריטיים לתסריט (Script Rules):**
   1. **כיסוי מלא (Total Coverage):** עליך לעבור על רשימת ה-"summaryPoints" שיצרת **אחת אחרי השנייה**. אסור לדלג על שום נקודה! הפודקאסט חייב ללמד את הכל.
   2. **מבנה השיחה:**
      - התחל בפתיח קצר (${hostName} פונה ל${studentName} בשמו/ה).
@@ -93,6 +129,7 @@ export const analyzePresentation = async (
   פורמט JSON חובה:
   {
     "summary": "פתיח קצר (2-3 משפטים) שנותן את ה-Big Picture.",
+    "detailedSummary": "---\\n1. מבוא: שם הנושא הראשי\\n\\nהמצגת עוסקת ב**נושא מרכזי** ומשמעותו. הנושא חשוב כי...\\n\\nפירוט הנקודות:\\n• נקודה ראשונה: הסבר\\n• נקודה שניה: הסבר\\n\\n**דוגמה פשוטה:** כשאתה עושה X, קורה Y...\\n\\n---\\n2. נושא שני: שם הנושא\\n\\n**מושג חשוב** הוא... הוא פועל על ידי...\\n\\nתהליך (שלבים):\\n1. שלב ראשון\\n2. שלב שני\\n3. שלב שלישי\\n\\n**דוגמה פשוטה למבחן:** דני ודינה רוצים לדבר בפרטיות...\\n\\n---\\nסיכום להכנה למבחן\\n• דע את X\\n• הבן את Y\\n• זכור ש-Z",
     "summaryPoints": [
       { "point": "שם המושג", "details": "הסבר מפורט ומעמיק..." }
     ],
@@ -143,6 +180,7 @@ export const analyzePresentation = async (
 
     return {
       summary: jsonResponse.summary || "סיכום זמין",
+      detailedSummary: jsonResponse.detailedSummary || "",
       summaryPoints: jsonResponse.summaryPoints || [],
       script: jsonResponse.script,
     };
@@ -503,6 +541,130 @@ export const generateQuiz = async (
 
   } catch (error) {
     console.error("Error generating quiz:", error);
+    throw error;
+  }
+};
+
+/**
+ * Synthesize Multiple Lectures into One Meta-Lecture
+ * מסנתז מספר הרצאות לאחת מאוחדת עם דה-דופליקציה חכמה
+ */
+export const synthesizeMetaLecture = async (
+  apiKey: string,
+  lectures: Array<{ title: string; summaryData: SummaryData }>,
+  metaTitle: string
+): Promise<{
+  summaryData: SummaryData;
+  metadata: any;
+}> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const modelId = "gemini-3-flash-preview";
+
+  // בניית קונטקסט מכל ההרצאות
+  const lecturesContext = lectures.map((lec, idx) => ({
+    index: idx,
+    title: lec.title,
+    summary: lec.summaryData.summary,
+    concepts: lec.summaryData.summaryPoints
+  }));
+
+  const prompt = `
+אתה מחנך מומחה היוצר "מטה-הרצאה" מאוחדת ממספר הרצאות קשורות.
+
+**משימה:** סנתז ${lectures.length} הרצאות להרצאת-על אחת בשם "${metaTitle}".
+
+**הרצאות מקור:**
+${lecturesContext.map(lec => `
+[${lec.index}] ${lec.title}
+תקציר: ${lec.summary}
+קונספטים:
+${lec.concepts.map((c, i) => `  ${i}. ${c.point}: ${c.details}`).join('\n')}
+`).join('\n---\n')}
+
+**הנחיות לביצוע:**
+
+1. **דה-דופליקציה חכמה**:
+   - אם אותו קונספט מופיע במספר הרצאות → מזג אותם לקונספט אחד
+   - דוגמה: "חיפוש בינארי" בהרצאה 0 והרצאה 2 → קונספט מאוחד אחד עם פרטים משולבים
+   - שלב את המידע מכל המקורות להסבר עשיר יותר
+
+2. **תקציר מאוחד**:
+   - צור תקציר חדש שתופס את התמונה הכוללת
+   - הראה קשרים בין נושאים
+   - זרימה לוגית (לא סתם שרשור!)
+   - 3-5 משפטים מקסימום
+
+3. **מעקב מקורות**:
+   - לכל קונספט - תעד מאיזה הרצאות מקור הוא בא
+
+4. **ללא תסריט**:
+   - מטה-הרצאות לא כוללות פודקאסט (יקר מדי)
+   - החזר script ריק
+
+**פורמט פלט (JSON בלבד):**
+{
+  "summary": "תקציר מאוחד שמקשר בין כל ההרצאות...",
+  "summaryPoints": [
+    {
+      "point": "שם הקונספט",
+      "details": "הסבר משולב ועשיר מכל המקורות...",
+      "sources": [0, 2]
+    }
+  ],
+  "script": []
+}
+
+**כללים:**
+- שאף ל-15-25 קונספטים סה"כ (דה-דופליקציה אגרסיבית)
+- סדר קונספטים באופן לוגי (לא לפי הרצאת מקור)
+- כל קונספט חייב "sources" array
+`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+      },
+    });
+
+    logTokenUsage("Synthesize Meta-Lecture", modelId, response.usageMetadata);
+
+    const jsonResponse = JSON.parse(response.text || "{}");
+
+    // בניית metadata למעקב
+    const metadata = {
+      sourceLectures: lectures.map((lec, idx) => ({
+        lectureId: '',
+        title: lec.title,
+        conceptMapping: []
+      })),
+      conceptOrigins: jsonResponse.summaryPoints.map((point: any, idx: number) => ({
+        conceptIndex: idx,
+        sourceLectureIds: [],
+        mergedFrom: point.sources || []
+      })),
+      synthesisDate: new Date().toISOString(),
+      synthesisModel: modelId
+    };
+
+    // ניקוי sources מ-summaryPoints
+    const summaryPoints = jsonResponse.summaryPoints.map((p: any) => ({
+      point: p.point,
+      details: p.details
+    }));
+
+    return {
+      summaryData: {
+        summary: jsonResponse.summary,
+        summaryPoints,
+        script: []
+      },
+      metadata
+    };
+  } catch (error) {
+    console.error("Error synthesizing meta-lecture:", error);
     throw error;
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SummaryData, SummaryPoint, ChatMessage, Insight, QuizSession, QuizDifficulty, FlashcardSession, Lecture, LectureProgress } from '../types';
+import { SummaryData, SummaryPoint, ChatMessage, Insight, QuizSession, QuizDifficulty, FlashcardSession, Lecture, LectureProgress, Highlight } from '../types';
 import { HighlightText } from '../utils/highlight';
 import { ConceptCard } from './ConceptCard';
 import { ExpandedConceptModal } from './ExpandedConceptModal';
@@ -8,6 +8,8 @@ import { InsightsPanel } from './InsightsPanel';
 import { QuizPanel } from './QuizPanel';
 import { FlashcardPanel } from './FlashcardPanel';
 import { ProgressPanel } from './ProgressPanel';
+import { DetailedSummary } from './DetailedSummary';
+import { HighlightsTab } from './HighlightsTab';
 
 interface SmartBoardProps {
     summaryData: SummaryData;
@@ -38,13 +40,17 @@ interface SmartBoardProps {
     onRetryUnknownFlashcards: () => void;
     // Progress Actions
     getLectureProgress: (lectureId: string) => Promise<LectureProgress | null>;
+    // Highlight Actions
+    highlights?: Highlight[];
+    onAddHighlight?: (text: string, startOffset: number, endOffset: number) => void;
+    onDeleteHighlight?: (highlightId: string) => void;
 
     overriddenTab?: Tab;
     initialInput?: string;
     highlightTerm?: string;
 }
 
-type Tab = 'CONCEPTS' | 'SUMMARY' | 'CHAT' | 'FLASHCARDS' | 'QUIZ' | 'PROGRESS' | 'INSIGHTS';
+type Tab = 'CONCEPTS' | 'SUMMARY' | 'CHAT' | 'FLASHCARDS' | 'QUIZ' | 'PROGRESS' | 'INSIGHTS' | 'HIGHLIGHTS';
 
 export const SmartBoard: React.FC<SmartBoardProps> = ({
     summaryData,
@@ -76,6 +82,9 @@ export const SmartBoard: React.FC<SmartBoardProps> = ({
     onResetFlashcards,
     onRetryUnknownFlashcards,
     getLectureProgress,
+    highlights = [],
+    onAddHighlight,
+    onDeleteHighlight,
     highlightTerm
 }) => {
     const [activeTab, setActiveTab] = useState<Tab>('CONCEPTS');
@@ -101,7 +110,8 @@ export const SmartBoard: React.FC<SmartBoardProps> = ({
         { id: 'FLASHCARDS' as Tab, label: 'כרטיסיות', color: 'text-fuchsia-500 dark:text-fuchsia-400', glow: 'shadow-fuchsia-500/20', bg: 'bg-fuchsia-500/10', dot: 'bg-fuchsia-500', count: flashcards?.cards.length },
         { id: 'QUIZ' as Tab, label: 'בוחן', color: 'text-orange-500 dark:text-orange-400', glow: 'shadow-orange-500/20', bg: 'bg-orange-500/10', dot: 'bg-orange-500' },
         { id: 'PROGRESS' as Tab, label: 'התקדמות', color: 'text-emerald-500 dark:text-emerald-400', glow: 'shadow-emerald-500/20', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500' },
-        { id: 'INSIGHTS' as Tab, label: 'תובנות', color: 'text-amber-500 dark:text-amber-400', glow: 'shadow-amber-500/20', bg: 'bg-amber-500/10', dot: 'bg-amber-500', count: insights.length },
+        { id: 'HIGHLIGHTS' as Tab, label: 'למבחן', color: 'text-amber-500 dark:text-amber-400', glow: 'shadow-amber-500/20', bg: 'bg-amber-500/10', dot: 'bg-amber-500', count: highlights.length },
+        { id: 'INSIGHTS' as Tab, label: 'תובנות', color: 'text-rose-500 dark:text-rose-400', glow: 'shadow-rose-500/20', bg: 'bg-rose-500/10', dot: 'bg-rose-500', count: insights.length },
     ];
 
     return (
@@ -177,22 +187,13 @@ export const SmartBoard: React.FC<SmartBoardProps> = ({
                 )}
 
                 {activeTab === 'SUMMARY' && (
-                    <div className="p-4 sm:p-8 md:p-10 overflow-y-auto custom-scrollbar h-full pb-20">
-                        <div className="bg-gradient-to-br from-white to-indigo-50/50 dark:from-slate-800 dark:to-slate-800/50 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/60 dark:border-slate-700 mb-10 shadow-sm relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl"></div>
-                            <h4 className="font-bold text-indigo-900 dark:text-indigo-300 mb-4 flex items-center gap-3 text-lg">
-                                <span className="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-lg">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                                    </svg>
-                                </span>
-                                המבט הכולל
-                            </h4>
-                            <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-lg font-light">
-                                <HighlightText text={summaryData.summary} term={highlightTerm} />
-                            </p>
-                        </div>
-                    </div>
+                    <DetailedSummary
+                        summaryData={summaryData}
+                        highlightTerm={highlightTerm}
+                        highlights={highlights}
+                        onAddHighlight={onAddHighlight}
+                        onDeleteHighlight={onDeleteHighlight}
+                    />
                 )}
 
                 {activeTab === 'CHAT' && (
@@ -230,6 +231,7 @@ export const SmartBoard: React.FC<SmartBoardProps> = ({
                 {activeTab === 'QUIZ' && quizState && (
                     <QuizPanel
                         quizState={quizState}
+                        lecture={lecture}
                         onStartQuiz={onStartQuiz}
                         onAnswer={onQuizAnswer}
                         onReset={onQuizReset}
@@ -243,6 +245,14 @@ export const SmartBoard: React.FC<SmartBoardProps> = ({
                         getLectureProgress={getLectureProgress}
                         onNavigateToFlashcards={() => setActiveTab('FLASHCARDS')}
                         onNavigateToQuiz={() => setActiveTab('QUIZ')}
+                    />
+                )}
+
+                {activeTab === 'HIGHLIGHTS' && (
+                    <HighlightsTab
+                        highlights={highlights}
+                        onDelete={(id) => onDeleteHighlight?.(id)}
+                        onGoToSummary={() => setActiveTab('SUMMARY')}
                     />
                 )}
             </div>

@@ -1,6 +1,11 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Course, Lecture, FileData, ProcessingMode } from './types';
+import React, { useState } from 'react';
+import { ProcessingMode } from './types';
 import { useSupabaseStore } from './hooks/useSupabaseStore';
+import { useModalState } from './hooks/useModalState';
+import { useSmartSearch } from './hooks/useSmartSearch';
+import { useAudioSync } from './hooks/useAudioSync';
+import { useLectureWorkspace } from './hooks/useLectureWorkspace';
+import { useMetaLectureActions } from './hooks/useMetaLectureActions';
 import { FileUpload } from './components/FileUpload';
 import { AudioPlayer } from './components/AudioPlayer';
 import { SupabaseAuthScreen } from './components/SupabaseAuthScreen';
@@ -14,6 +19,7 @@ import { ScriptActionMenu } from './components/ScriptActionMenu';
 import { SmartBoard } from './components/SmartBoard';
 import { SummaryPreviewModal } from './components/SummaryPreviewModal';
 import { SmartSearchBar } from './components/SmartSearchBar';
+import { MetaLectureModal } from './components/MetaLectureModal';
 
 const AppSupabase: React.FC = () => {
   const {
@@ -51,6 +57,9 @@ const AppSupabase: React.FC = () => {
     // Insights Actions
     addInsight,
     deleteInsight,
+    // Highlight Actions
+    addHighlight,
+    deleteHighlight,
     // Quiz Actions
     initQuiz,
     generateNewQuiz,
@@ -68,243 +77,152 @@ const AppSupabase: React.FC = () => {
     getLectureProgress,
     // Other
     toggleDarkMode,
-    migrateData
+    migrateData,
+    // Utilities
+    supabaseFetch,
+    setCourses
   } = useSupabaseStore();
 
   // --- Migration State (disabled - migration complete) ---
   const [showMigration, setShowMigration] = useState(false);
   // Migration is disabled for new users - data already migrated
 
-  // --- UI State for adding items ---
-  const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
-  const [newCourseName, setNewCourseName] = useState('');
-
-  const [isAddLectureModalOpen, setIsAddLectureModalOpen] = useState(false);
-  const [newLectureName, setNewLectureName] = useState('');
-
-  // --- UI State for EDITING items ---
-  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [editCourseName, setEditCourseName] = useState('');
-
-  const [editingLecture, setEditingLecture] = useState<{ lecture: Lecture, courseId: string } | null>(null);
-  const [editLectureName, setEditLectureName] = useState('');
-
   // --- Search State ---
   const [searchQuery, setSearchQuery] = useState('');
 
-  // --- Filtered Lectures (Smart Search Logic) ---
-  const filteredLectures = useMemo(() => {
-    if (!activeCourse) return [];
-    if (!searchQuery.trim()) return activeCourse.lectures.map(l => ({ lecture: l, matchType: null }));
-
-    const query = searchQuery.toLowerCase();
-
-    return activeCourse.lectures
-      .map(lecture => {
-        // 1. Check Title (High Priority)
-        if (lecture.title.toLowerCase().includes(query)) {
-          return { lecture, matchType: 'TITLE' as const };
-        }
-
-        // 2. Check Summary
-        if (lecture.summaryData?.summary.toLowerCase().includes(query)) {
-          return { lecture, matchType: 'SUMMARY' as const };
-        }
-
-        // 3. Check Summary Points (Concepts)
-        if (lecture.summaryData?.summaryPoints.some(p => p.point.toLowerCase().includes(query) || p.details.toLowerCase().includes(query))) {
-          return { lecture, matchType: 'CONCEPT' as const };
-        }
-
-        // 4. Check Insights
-        if (lecture.insights?.some(insight => insight.content.toLowerCase().includes(query))) {
-          return { lecture, matchType: 'INSIGHT' as const };
-        }
-
-        return null;
-      })
-      .filter((item): item is { lecture: Lecture; matchType: 'TITLE' | 'SUMMARY' | 'INSIGHT' | 'CONCEPT' | null } => item !== null);
-  }, [activeCourse, searchQuery]);
-
-  // --- UI State for Preview Mode ---
-  const [previewLecture, setPreviewLecture] = useState<Lecture | null>(null);
-
-  // --- UI State for Processing Mode ---
-  const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false);
-  const [pendingFile, setPendingFile] = useState<FileData | null>(null);
-
-  // --- Lecture Workspace Logic ---
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
-  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
-  const [activeLineIndex, setActiveLineIndex] = useState<number>(-1);
-  const [activePointIndex, setActivePointIndex] = useState<number>(-1);
-  const [expandedPointIndex, setExpandedPointIndex] = useState<number | null>(null);
-  const [forcedTab, setForcedTab] = useState<'CONCEPTS' | 'SUMMARY' | 'CHAT' | 'FLASHCARDS' | 'QUIZ' | 'INSIGHTS' | undefined>(undefined);
-  const [chatDraft, setChatDraft] = useState<string>('');
-  const [isActionProcessing, setIsActionProcessing] = useState(false);
-
-  const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const scriptContainerRef = useRef<HTMLDivElement>(null);
+  // --- Custom Hooks for UI State Management ---
+  const modalState = useModalState();
+  const { filteredLectures } = useSmartSearch({ activeCourse, searchQuery });
+  const audioSync = useAudioSync({ activeLecture });
+  const workspace = useLectureWorkspace();
+  const metaLectureActions = useMetaLectureActions({
+    user,
+    courses,
+    setCourses,
+    supabaseFetch,
+    updateLectureLocal: updateLecture
+  });
 
   // --- Action Handlers ---
 
   const onAddCourse = async () => {
-    if (!newCourseName.trim()) return;
-    await addCourse(newCourseName);
-    setNewCourseName('');
-    setIsAddCourseModalOpen(false);
+    if (!modalState.newCourseName.trim()) return;
+    await addCourse(modalState.newCourseName);
+    modalState.setNewCourseName('');
+    modalState.setIsAddCourseModalOpen(false);
   };
 
   const onUpdateCourse = async () => {
-    if (!editingCourse || !editCourseName.trim()) return;
-    await updateCourse(editingCourse.id, editCourseName);
-    setEditingCourse(null);
-    setEditCourseName('');
+    if (!modalState.editingCourse || !modalState.editCourseName.trim()) return;
+    await updateCourse(modalState.editingCourse.id, modalState.editCourseName);
+    modalState.setEditingCourse(null);
+    modalState.setEditCourseName('');
   };
 
-  const openEditCourseModal = (course: Course) => {
-    setEditingCourse(course);
-    setEditCourseName(course.name);
+  const openEditCourseModal = (course: any) => {
+    modalState.setEditingCourse(course);
+    modalState.setEditCourseName(course.name);
   };
 
   const onAddLecture = async () => {
-    if (!newLectureName.trim() || !activeCourse) return;
-    await addLecture(activeCourse.id, newLectureName);
-    setNewLectureName('');
-    setIsAddLectureModalOpen(false);
+    if (!modalState.newLectureName.trim() || !activeCourse) return;
+    await addLecture(activeCourse.id, modalState.newLectureName);
+    modalState.setNewLectureName('');
+    modalState.setIsAddLectureModalOpen(false);
   };
 
   const onUpdateLecture = async () => {
-    if (!editingLecture || !editLectureName.trim()) return;
-    updateLecture(editingLecture.courseId, editingLecture.lecture.id, { title: editLectureName });
-    setEditingLecture(null);
-    setEditLectureName('');
+    if (!modalState.editingLecture || !modalState.editLectureName.trim()) return;
+    updateLecture(modalState.editingLecture.courseId, modalState.editingLecture.lecture.id, { title: modalState.editLectureName });
+    modalState.setEditingLecture(null);
+    modalState.setEditLectureName('');
   };
 
-  const openEditLectureModal = (lecture: Lecture) => {
+  const openEditLectureModal = (lecture: any) => {
     if (!activeCourse) return;
-    setEditingLecture({ lecture, courseId: activeCourse.id });
-    setEditLectureName(lecture.title);
+    modalState.setEditingLecture({ lecture, courseId: activeCourse.id });
+    modalState.setEditLectureName(lecture.title);
+  };
+
+  // --- Meta-Lecture Handlers ---
+  const onCreateMetaLecture = async () => {
+    if (!activeCourse) return;
+
+    workspace.setIsActionProcessing(true);
+
+    try {
+      await metaLectureActions.createMetaLecture(
+        activeCourse.id,
+        modalState.metaLectureName,
+        modalState.selectedLectureIds
+      );
+
+      // איפוס modal
+      modalState.setMetaLectureName('');
+      modalState.setSelectedLectureIds([]);
+      modalState.setIsMetaLectureModalOpen(false);
+
+    } catch (error) {
+      console.error('Failed to create meta-lecture:', error);
+      alert('שגיאה ביצירת מטה-הרצאה. נסה שוב.');
+    } finally {
+      workspace.setIsActionProcessing(false);
+    }
+  };
+
+  const onToggleSelectLecture = (lectureId: string) => {
+    modalState.setSelectedLectureIds(prev =>
+      prev.includes(lectureId)
+        ? prev.filter(id => id !== lectureId)
+        : [...prev, lectureId]
+    );
   };
 
   // --- Processing Logic ---
-  const onFileSelected = (file: FileData) => {
-    setPendingFile(file);
-    setIsProcessingModalOpen(true);
+  const onFileSelected = (file: any) => {
+    modalState.setPendingFile(file);
+    modalState.setIsProcessingModalOpen(true);
   };
 
   const startProcessing = async (mode: ProcessingMode) => {
-    if (!pendingFile || viewState.type !== 'LECTURE' || !user) return;
-    setIsProcessingModalOpen(false);
-    await processLecture(viewState.courseId, viewState.lectureId, pendingFile, mode);
-    setPendingFile(null);
+    if (!modalState.pendingFile || viewState.type !== 'LECTURE' || !user) return;
+    modalState.setIsProcessingModalOpen(false);
+    await processLecture(viewState.courseId, viewState.lectureId, modalState.pendingFile, mode);
+    modalState.setPendingFile(null);
   };
 
   const handleGenerateAudioClick = async () => {
     if (!activeLecture?.summaryData?.script || viewState.type !== 'LECTURE' || !user) return;
-    if (isGeneratingAudio) return;
-    setIsGeneratingAudio(true);
+    if (workspace.isGeneratingAudio) return;
+    workspace.setIsGeneratingAudio(true);
     try {
       await generateAudio(viewState.courseId, viewState.lectureId, activeLecture.summaryData.script);
     } catch (err) {
       alert("נכשל ביצירת אודיו");
     } finally {
-      setIsGeneratingAudio(false);
+      workspace.setIsGeneratingAudio(false);
     }
   };
-
-  // Script Auto-Scroll & Concept Linking Logic
-  const parsedScript = useMemo(() => {
-    if (!activeLecture?.summaryData?.script) return [];
-    const scriptLines = activeLecture.summaryData.script;
-    const hasTimestamps = scriptLines.some(l => l.startTime !== undefined);
-
-    if (hasTimestamps) {
-      return scriptLines.map(line => ({
-        ...line,
-        isOmri: line.speaker === 'עומרי',
-        isNoa: line.speaker === 'נועה',
-        start: line.startTime || 0,
-        end: line.endTime || 0
-      }));
-    }
-
-    const totalLength = scriptLines.reduce((acc, curr) => acc + curr.text.length, 0);
-    let currentPos = 0;
-
-    return scriptLines.map(line => {
-      const startRatio = currentPos / totalLength;
-      const endRatio = (currentPos + line.text.length) / totalLength;
-      currentPos += line.text.length;
-      return {
-        ...line,
-        isOmri: line.speaker === 'עומרי',
-        isNoa: line.speaker === 'נועה',
-        startRatio,
-        endRatio,
-        start: 0,
-        end: 0
-      };
-    });
-  }, [activeLecture?.summaryData?.script]);
-
-  const handleAudioProgress = (currentTime: number, duration: number) => {
-    if (!parsedScript.length) return;
-    const usingTimestamps = parsedScript[0].start !== parsedScript[0].end;
-
-    let index = -1;
-    if (usingTimestamps) {
-      index = parsedScript.findIndex(line => currentTime >= line.start && currentTime < line.end);
-    } else {
-      const progressRatio = duration > 0 ? currentTime / duration : 0;
-      index = parsedScript.findIndex(line => {
-        // @ts-ignore
-        const s = line.startRatio || 0;
-        // @ts-ignore
-        const e = line.endRatio || 0;
-        return progressRatio >= s && progressRatio < e;
-      });
-    }
-
-    if (index !== -1 && index !== activeLineIndex) {
-      setActiveLineIndex(index);
-      const relatedPointIndex = parsedScript[index].relatedPointIndex;
-      if (relatedPointIndex !== undefined && relatedPointIndex !== -1) {
-        setActivePointIndex(relatedPointIndex);
-        if (expandedPointIndex !== null) {
-          setExpandedPointIndex(relatedPointIndex);
-        }
-      } else {
-        setActivePointIndex(-1);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (activeLineIndex >= 0 && lineRefs.current[activeLineIndex]) {
-      lineRefs.current[activeLineIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [activeLineIndex]);
 
   // --- Context Actions ---
   const handleContextAction = async (action: 'EXPLAIN' | 'ASK', text: string, speaker: string) => {
-    if (!activeCourse || !activeLecture || isActionProcessing) return;
-    setIsActionProcessing(true);
+    if (!activeCourse || !activeLecture || workspace.isActionProcessing) return;
+    workspace.setIsActionProcessing(true);
 
     try {
       if (action === 'EXPLAIN') {
-        setForcedTab('CHAT');
+        workspace.setForcedTab('CHAT');
         const prompt = `לא הבנתי את הקטע ש${speaker} אמר: "${text}". תוכל להסביר לי אותו במילים פשוטות?`;
         await sendChatMessage(activeCourse.id, activeLecture.id, prompt);
       } else {
         const prompt = `יש לי שאלה לגבי מה ש${speaker} אמר: "${text}"...`;
-        setChatDraft(prompt);
-        setForcedTab('CHAT');
+        workspace.setChatDraft(prompt);
+        workspace.setForcedTab('CHAT');
       }
     } catch (error) {
       console.error("Context action failed:", error);
     } finally {
-      setTimeout(() => setIsActionProcessing(false), 1000);
+      setTimeout(() => workspace.setIsActionProcessing(false), 1000);
     }
   };
 
@@ -408,7 +326,7 @@ const AppSupabase: React.FC = () => {
   }
 
   return (
-    <div className={isDarkMode ? 'dark' : ''}>
+    <div>
       {/* Migration Prompt */}
       {showMigration && (
         <MigrationPrompt
@@ -485,7 +403,7 @@ const AppSupabase: React.FC = () => {
 
                 {viewState.type === 'DASHBOARD' && (
                   <button
-                    onClick={() => setIsAddCourseModalOpen(true)}
+                    onClick={() => modalState.setIsAddCourseModalOpen(true)}
                     className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-2.5 rounded-full text-sm font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 group"
                   >
                     <span className="bg-white/20 dark:bg-black/10 rounded-full p-1">
@@ -497,17 +415,28 @@ const AppSupabase: React.FC = () => {
                   </button>
                 )}
                 {viewState.type === 'COURSE' && (
-                  <button
-                    onClick={() => setIsAddLectureModalOpen(true)}
-                    className="bg-indigo-600 text-white px-6 py-2.5 rounded-full text-sm font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 hover:shadow-indigo-500/50 hover:scale-105 transition-all flex items-center gap-2 group"
-                  >
-                    <span className="bg-white/20 rounded-full p-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3.5 h-3.5 group-hover:rotate-90 transition-transform">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => modalState.setIsAddLectureModalOpen(true)}
+                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-full text-sm font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 hover:shadow-indigo-500/50 hover:scale-105 transition-all flex items-center gap-2 group"
+                    >
+                      <span className="bg-white/20 rounded-full p-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3.5 h-3.5 group-hover:rotate-90 transition-transform">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                      </span>
+                      הוסף הרצאה
+                    </button>
+                    <button
+                      onClick={() => modalState.setIsMetaLectureModalOpen(true)}
+                      className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-6 py-2.5 rounded-full text-sm font-bold shadow-lg shadow-purple-500/30 hover:scale-105 transition-all flex items-center gap-2"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
                       </svg>
-                    </span>
-                    הוסף הרצאה
-                  </button>
+                      צור מטה-הרצאה
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -527,7 +456,7 @@ const AppSupabase: React.FC = () => {
 
           {/* 1. Dashboard View */}
           {viewState.type === 'DASHBOARD' && (
-            <div className="animate-fade-in-up h-full overflow-y-auto custom-scrollbar pb-20 pr-2">
+            <div className="animate-fade-in-up h-full overflow-y-auto custom-scrollbar pb-32 p-10 md:p-20">
               <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
                 <div>
                   <h2 className="text-4xl md:text-5xl font-extrabold text-slate-800 dark:text-white mb-2 tracking-tight">הקורסים שלי</h2>
@@ -536,7 +465,7 @@ const AppSupabase: React.FC = () => {
               </div>
 
               {courses.length === 0 ? (
-                <div className="text-center py-24 bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl rounded-[40px] border border-dashed border-slate-300 dark:border-slate-700 group cursor-pointer hover:bg-white/50 dark:hover:bg-slate-900/50 transition-colors" onClick={() => setIsAddCourseModalOpen(true)}>
+                <div className="text-center py-24 bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl rounded-[40px] border border-dashed border-slate-300 dark:border-slate-700 group cursor-pointer hover:bg-white/50 dark:hover:bg-slate-900/50 transition-colors" onClick={() => modalState.setIsAddCourseModalOpen(true)}>
                   <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-slate-800 dark:to-slate-700 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner group-hover:scale-110 transition-transform duration-300">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-slate-400 dark:text-slate-500">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
@@ -603,14 +532,14 @@ const AppSupabase: React.FC = () => {
                       onClick={() => {
                         setViewState({ type: 'LECTURE', courseId: activeCourse.id, lectureId: lecture.id });
                         // Contextual Navigation Logic
-                        if (matchType === 'SUMMARY') setForcedTab('SUMMARY');
-                        else if (matchType === 'INSIGHT') setForcedTab('INSIGHTS');
-                        else if (matchType === 'CONCEPT') setForcedTab('CONCEPTS');
-                        else setForcedTab(undefined); // Default navigation
+                        if (matchType === 'SUMMARY') workspace.setForcedTab('SUMMARY');
+                        else if (matchType === 'INSIGHT') workspace.setForcedTab('INSIGHTS');
+                        else if (matchType === 'CONCEPT') workspace.setForcedTab('CONCEPTS');
+                        else workspace.setForcedTab(undefined); // Default navigation
                       }}
                       onEdit={openEditLectureModal}
                       onDelete={(l) => deleteLecture(activeCourse.id, l.id)}
-                      onPreview={(l) => setPreviewLecture(l)}
+                      onPreview={(l) => modalState.setPreviewLecture(l)}
                     />
                   ))
                 )}
@@ -631,6 +560,35 @@ const AppSupabase: React.FC = () => {
                     <span>{activeLecture.date}</span>
                   </div>
                 </div>
+
+                {/* Toggle Podcast Panel - Only for regular lectures with script */}
+                {activeLecture.lectureType !== 'META' && activeLecture.status === 'READY' && activeLecture.summaryData?.script && activeLecture.summaryData.script.length > 0 && (
+                  <button
+                    onClick={() => workspace.setIsPodcastPanelHidden(!workspace.isPodcastPanelHidden)}
+                    className={`hidden xl:flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                      workspace.isPodcastPanelHidden
+                        ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                    title={workspace.isPodcastPanelHidden ? 'הצג פודקאסט ותסריט' : 'הסתר פודקאסט ותסריט'}
+                  >
+                    {workspace.isPodcastPanelHidden ? (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                        הצג פודקאסט
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                        </svg>
+                        הרחב תצוגה
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
               {/* EMPTY STATE */}
@@ -676,19 +634,20 @@ const AppSupabase: React.FC = () => {
                 <div key={activeLecture.id} className="flex flex-col xl:flex-row gap-4 sm:gap-6 xl:h-full min-h-0 pb-2">
 
                   {/* Mobile: SmartBoard first (order-1 on mobile, order-2 on xl) */}
-                  <div className="xl:flex-1 min-h-[400px] sm:min-h-[500px] xl:min-h-0 xl:h-full order-1 xl:order-2">
+                  {/* Meta-lectures or hidden panel take full width, regular lectures take flex-1 */}
+                  <div className={`min-h-[400px] sm:min-h-[500px] xl:min-h-0 xl:h-full order-1 ${(activeLecture.lectureType === 'META' || workspace.isPodcastPanelHidden) ? 'xl:w-full' : 'xl:flex-1 xl:order-2'}`}>
                     <SmartBoard
                       summaryData={activeLecture.summaryData}
                       chatHistory={activeLecture.chatHistory || []}
                       insights={activeLecture.insights || []}
-                      activePointIndex={activePointIndex}
+                      activePointIndex={audioSync.activePointIndex}
                       onSendMessage={(msg) => sendChatMessage(activeCourse.id, activeLecture.id, msg)}
                       onAddInsight={(content) => addInsight(activeCourse.id, activeLecture.id, content)}
                       onDeleteInsight={(id) => deleteInsight(activeCourse.id, activeLecture.id, id)}
                       onClearChat={() => clearChatHistory(activeCourse.id, activeLecture.id)}
-                      onExpandPoint={(index) => setExpandedPointIndex(index)}
-                      overriddenTab={forcedTab}
-                      initialInput={chatDraft}
+                      onExpandPoint={(index) => audioSync.setExpandedPointIndex(index)}
+                      overriddenTab={workspace.forcedTab}
+                      initialInput={workspace.chatDraft}
                       quizState={activeLecture.quiz}
                       onInitQuiz={() => activeCourse && activeLecture && initQuiz(activeCourse.id, activeLecture.id)}
                       onStartQuiz={(settings) => activeCourse && activeLecture && generateNewQuiz(activeCourse.id, activeLecture.id, settings)}
@@ -697,14 +656,14 @@ const AppSupabase: React.FC = () => {
                       onNewQuiz={() => activeCourse && activeLecture && closeQuiz(activeCourse.id, activeLecture.id)}
                       lecture={activeLecture}
                       flashcards={activeLecture.flashcards}
-                      isGeneratingFlashcards={isGeneratingFlashcards}
+                      isGeneratingFlashcards={workspace.isGeneratingFlashcards}
                       onGenerateFlashcards={async () => {
                         if (activeCourse && activeLecture) {
-                          setIsGeneratingFlashcards(true);
+                          workspace.setIsGeneratingFlashcards(true);
                           try {
                             await generateFlashcardsFromSummary(activeCourse.id, activeLecture.id);
                           } finally {
-                            setIsGeneratingFlashcards(false);
+                            workspace.setIsGeneratingFlashcards(false);
                           }
                         }
                       }}
@@ -714,11 +673,20 @@ const AppSupabase: React.FC = () => {
                       onResetFlashcards={() => activeCourse && activeLecture && resetFlashcards(activeCourse.id, activeLecture.id)}
                       onRetryUnknownFlashcards={() => activeCourse && activeLecture && retryUnknownFlashcards(activeCourse.id, activeLecture.id)}
                       getLectureProgress={getLectureProgress}
+                      highlights={activeLecture.highlights || []}
+                      onAddHighlight={(text, startOffset, endOffset) =>
+                        activeCourse && activeLecture && addHighlight(activeCourse.id, activeLecture.id, text, startOffset, endOffset)
+                      }
+                      onDeleteHighlight={(highlightId) =>
+                        activeCourse && activeLecture && deleteHighlight(activeCourse.id, activeLecture.id, highlightId)
+                      }
                       highlightTerm={searchQuery}
                     />
                   </div>
 
                   {/* Left Panel: Audio & Context (order-2 on mobile, order-1 on xl) */}
+                  {/* Hidden for meta-lectures or when user toggles it off */}
+                  {activeLecture.lectureType !== 'META' && !workspace.isPodcastPanelHidden && activeLecture.summaryData?.script && activeLecture.summaryData.script.length > 0 && (
                   <div className="xl:w-1/3 flex flex-col gap-4 sm:gap-6 min-h-0 order-2 xl:order-1">
                     <div className="flex flex-col gap-4 sm:gap-6 xl:overflow-y-auto custom-scrollbar pb-2 xl:pr-1 xl:flex-1">
 
@@ -728,9 +696,9 @@ const AppSupabase: React.FC = () => {
                           <AudioPlayer
                             base64Audio={activeLecture.audioBase64}
                             audioGeneratedDate={activeLecture.audioGeneratedDate}
-                            onProgressUpdate={handleAudioProgress}
+                            onProgressUpdate={audioSync.handleAudioProgress}
                             onRegenerate={handleGenerateAudioClick}
-                            isRegenerating={isGeneratingAudio}
+                            isRegenerating={workspace.isGeneratingAudio}
                           />
                         ) : (
                           <div className="p-10 text-center">
@@ -743,10 +711,10 @@ const AppSupabase: React.FC = () => {
                             <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">הפודקאסט שלך מוכן ליצירה. לחץ למטה כדי להתחיל ללמוד תוך כדי תנועה.</p>
                             <button
                               onClick={handleGenerateAudioClick}
-                              disabled={isGeneratingAudio}
+                              disabled={workspace.isGeneratingAudio}
                               className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl font-bold text-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-50 disabled:scale-100"
                             >
-                              {isGeneratingAudio ? (
+                              {workspace.isGeneratingAudio ? (
                                 <span className="flex items-center justify-center gap-2">
                                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -776,13 +744,13 @@ const AppSupabase: React.FC = () => {
                             <span>נועה</span>
                           </div>
                         </div>
-                        <div ref={scriptContainerRef} className="p-4 sm:p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4 sm:space-y-6 max-h-[400px] xl:max-h-none">
-                          {parsedScript.map((line, idx) => {
-                            const isActive = idx === activeLineIndex;
+                        <div ref={audioSync.scriptContainerRef} className="p-4 sm:p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4 sm:space-y-6 max-h-[400px] xl:max-h-none">
+                          {audioSync.parsedScript.map((line, idx) => {
+                            const isActive = idx === audioSync.activeLineIndex;
                             if (!line.isOmri && !line.isNoa) return null;
 
                             return (
-                              <div key={idx} ref={(el) => { lineRefs.current[idx] = el; }} className={`flex ${line.isOmri ? 'justify-start' : 'justify-end'} group relative`}>
+                              <div key={idx} ref={(el) => { audioSync.lineRefs.current[idx] = el; }} className={`flex ${line.isOmri ? 'justify-start' : 'justify-end'} group relative`}>
                                 <div className={`
                                   max-w-[85%] rounded-3xl p-5 text-sm relative transition-all duration-300 shadow-sm
                                   ${line.isOmri
@@ -808,6 +776,7 @@ const AppSupabase: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                  )}
 
                 </div>
 
@@ -819,16 +788,16 @@ const AppSupabase: React.FC = () => {
         {/* --- MODALS --- */}
 
         {/* Expanded Concept View Modal */}
-        {expandedPointIndex !== null && activeLecture?.summaryData?.summaryPoints && (
+        {audioSync.expandedPointIndex !== null && activeLecture?.summaryData?.summaryPoints && (
           <ExpandedConceptModal
-            item={activeLecture.summaryData.summaryPoints[expandedPointIndex]}
-            index={expandedPointIndex}
-            onClose={() => setExpandedPointIndex(null)}
+            item={activeLecture.summaryData.summaryPoints[audioSync.expandedPointIndex]}
+            index={audioSync.expandedPointIndex}
+            onClose={() => audioSync.setExpandedPointIndex(null)}
           />
         )}
 
         {/* Processing Mode Selection Modal */}
-        {isProcessingModalOpen && (
+        {modalState.isProcessingModalOpen && (
           <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-[40px] w-full max-w-2xl p-10 shadow-2xl border border-white/20 relative overflow-hidden animate-fade-in-up">
               <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px]"></div>
@@ -872,7 +841,7 @@ const AppSupabase: React.FC = () => {
               </div>
 
               <button
-                onClick={() => { setIsProcessingModalOpen(false); setPendingFile(null); }}
+                onClick={() => { modalState.setIsProcessingModalOpen(false); modalState.setPendingFile(null); }}
                 className="mt-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm font-bold transition-colors w-full uppercase tracking-wide"
               >
                 ביטול
@@ -882,28 +851,28 @@ const AppSupabase: React.FC = () => {
         )}
 
         {/* Modal for Adding Course */}
-        {isAddCourseModalOpen && (
+        {modalState.isAddCourseModalOpen && (
           <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md p-10 shadow-2xl border border-white/20">
               <h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">הוספת קורס חדש</h3>
               <input
                 type="text"
                 placeholder="שם הקורס (לדוגמה: מבוא לכלכלה)"
-                value={newCourseName}
-                onChange={(e) => setNewCourseName(e.target.value)}
+                value={modalState.newCourseName}
+                onChange={(e) => modalState.setNewCourseName(e.target.value)}
                 className="w-full border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-4 py-4 mb-8 focus:ring-2 focus:ring-indigo-500 outline-none text-lg transition-all"
                 autoFocus
               />
               <div className="flex gap-4 justify-end">
                 <button
-                  onClick={() => setIsAddCourseModalOpen(false)}
+                  onClick={() => modalState.setIsAddCourseModalOpen(false)}
                   className="px-6 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   ביטול
                 </button>
                 <button
                   onClick={onAddCourse}
-                  disabled={!newCourseName.trim()}
+                  disabled={!modalState.newCourseName.trim()}
                   className="px-8 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105"
                 >
                   צור קורס
@@ -914,27 +883,27 @@ const AppSupabase: React.FC = () => {
         )}
 
         {/* Modal for Editing Course */}
-        {editingCourse && (
+        {modalState.editingCourse && (
           <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md p-10 shadow-2xl border border-white/20">
               <h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">עריכת שם קורס</h3>
               <input
                 type="text"
-                value={editCourseName}
-                onChange={(e) => setEditCourseName(e.target.value)}
+                value={modalState.editCourseName}
+                onChange={(e) => modalState.setEditCourseName(e.target.value)}
                 className="w-full border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-4 py-4 mb-8 focus:ring-2 focus:ring-indigo-500 outline-none text-lg transition-all"
                 autoFocus
               />
               <div className="flex gap-4 justify-end">
                 <button
-                  onClick={() => setEditingCourse(null)}
+                  onClick={() => modalState.setEditingCourse(null)}
                   className="px-6 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   ביטול
                 </button>
                 <button
                   onClick={onUpdateCourse}
-                  disabled={!editCourseName.trim()}
+                  disabled={!modalState.editCourseName.trim()}
                   className="px-8 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105"
                 >
                   שמור שינויים
@@ -945,28 +914,28 @@ const AppSupabase: React.FC = () => {
         )}
 
         {/* Modal for Adding Lecture */}
-        {isAddLectureModalOpen && (
+        {modalState.isAddLectureModalOpen && (
           <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md p-10 shadow-2xl border border-white/20">
               <h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">הוספת הרצאה חדשה</h3>
               <input
                 type="text"
                 placeholder="נושא ההרצאה (לדוגמה: המהפכה התעשייתית)"
-                value={newLectureName}
-                onChange={(e) => setNewLectureName(e.target.value)}
+                value={modalState.newLectureName}
+                onChange={(e) => modalState.setNewLectureName(e.target.value)}
                 className="w-full border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-4 py-4 mb-8 focus:ring-2 focus:ring-indigo-500 outline-none text-lg transition-all"
                 autoFocus
               />
               <div className="flex gap-4 justify-end">
                 <button
-                  onClick={() => setIsAddLectureModalOpen(false)}
+                  onClick={() => modalState.setIsAddLectureModalOpen(false)}
                   className="px-6 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   ביטול
                 </button>
                 <button
                   onClick={onAddLecture}
-                  disabled={!newLectureName.trim()}
+                  disabled={!modalState.newLectureName.trim()}
                   className="px-8 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105"
                 >
                   צור הרצאה
@@ -977,27 +946,27 @@ const AppSupabase: React.FC = () => {
         )}
 
         {/* Modal for Editing Lecture */}
-        {editingLecture && (
+        {modalState.editingLecture && (
           <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md p-10 shadow-2xl border border-white/20">
               <h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">עריכת שם הרצאה</h3>
               <input
                 type="text"
-                value={editLectureName}
-                onChange={(e) => setEditLectureName(e.target.value)}
+                value={modalState.editLectureName}
+                onChange={(e) => modalState.setEditLectureName(e.target.value)}
                 className="w-full border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-4 py-4 mb-8 focus:ring-2 focus:ring-indigo-500 outline-none text-lg transition-all"
                 autoFocus
               />
               <div className="flex gap-4 justify-end">
                 <button
-                  onClick={() => setEditingLecture(null)}
+                  onClick={() => modalState.setEditingLecture(null)}
                   className="px-6 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   ביטול
                 </button>
                 <button
                   onClick={onUpdateLecture}
-                  disabled={!editLectureName.trim()}
+                  disabled={!modalState.editLectureName.trim()}
                   className="px-8 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105"
                 >
                   שמור שינויים
@@ -1008,12 +977,25 @@ const AppSupabase: React.FC = () => {
         )}
 
         {/* --- Preview Lecture Modal --- */}
-        {previewLecture && (
+        {modalState.previewLecture && (
           <SummaryPreviewModal
-            lecture={previewLecture}
-            onClose={() => setPreviewLecture(null)}
+            lecture={modalState.previewLecture}
+            onClose={() => modalState.setPreviewLecture(null)}
           />
         )}
+
+        {/* --- Meta-Lecture Creation Modal --- */}
+        <MetaLectureModal
+          isOpen={modalState.isMetaLectureModalOpen}
+          onClose={() => modalState.setIsMetaLectureModalOpen(false)}
+          availableLectures={activeCourse?.lectures || []}
+          selectedIds={modalState.selectedLectureIds}
+          onToggleSelect={onToggleSelectLecture}
+          metaTitle={modalState.metaLectureName}
+          onTitleChange={modalState.setMetaLectureName}
+          onCreate={onCreateMetaLecture}
+          isCreating={workspace.isActionProcessing}
+        />
 
       </div>
     </div>

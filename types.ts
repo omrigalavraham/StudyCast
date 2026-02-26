@@ -22,6 +22,7 @@ export interface ScriptLine {
 
 export interface SummaryData {
   summary: string;
+  detailedSummary?: string; // סיכום מפורט עם דוגמאות והסברים
   summaryPoints: SummaryPoint[];
   script: ScriptLine[]; // Changed from string to structured array
 }
@@ -73,6 +74,12 @@ export interface Lecture {
   insights?: Insight[];
   quiz?: QuizSession;
   flashcards?: FlashcardSession;
+  highlights?: Highlight[];      // סימוני טקסט חשוב למבחן
+
+  // 🆕 Meta-Lecture Fields
+  lectureType?: LectureType;
+  sourceLectureIds?: string[];
+  metaSynthesisMetadata?: MetaLectureSynthesisMetadata;
 }
 
 export type QuizDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
@@ -97,6 +104,24 @@ export interface QuizSession {
   questions: QuizQuestion[];
   userAnswers: Record<string, number>; // questionId -> selectedOptionIndex
   score: number;
+}
+
+// 🆕 Meta-Lecture Types
+export type LectureType = 'REGULAR' | 'META';
+
+export interface MetaLectureSynthesisMetadata {
+  sourceLectures: {
+    lectureId: string;
+    title: string;
+    conceptMapping: number[];  // אינדקסים של קונספטים ששרדו מהרצאה זו
+  }[];
+  conceptOrigins: {
+    conceptIndex: number;           // אינדקס בקונספטים המשולבים
+    sourceLectureIds: string[];     // מאיזה הרצאות מקור בא קונספט זה
+    mergedFrom: number[];           // אינדקסים מקוריים בהרצאות המקור
+  }[];
+  synthesisDate: string;
+  synthesisModel: string;
 }
 
 export interface Course {
@@ -161,4 +186,13 @@ export interface LectureProgress {
   strongCount: number;         // Concepts with mastery >= 80
   weakCount: number;           // Concepts with mastery < 50
   lastStudiedAt?: string;
+}
+
+// Highlight Types - סימון קטעים חשובים למבחן
+export interface Highlight {
+  id: string;
+  text: string;                  // הטקסט שנבחר
+  startOffset: number;           // מיקום התחלה ב-detailedSummary
+  endOffset: number;             // מיקום סיום ב-detailedSummary
+  createdAt: string;             // תאריך יצירה
 }

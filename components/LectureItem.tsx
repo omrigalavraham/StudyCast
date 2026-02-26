@@ -34,20 +34,36 @@ export const LectureItem: React.FC<{
         statusText = "שגיאה";
     }
 
+    const isMetaLecture = lecture.lectureType === 'META';
+
     return (
         <div
             onClick={onClick}
-            className="relative group overflow-hidden bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-white/60 dark:border-white/10 rounded-2xl p-4 sm:p-6 hover:bg-white/90 dark:hover:bg-slate-800/90 cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:shadow-xl hover:border-indigo-200 dark:hover:border-indigo-800"
+            className={`relative group overflow-hidden backdrop-blur-md rounded-2xl p-4 sm:p-6 cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:shadow-xl ${
+                isMetaLecture
+                    ? 'meta-lecture-gradient border-2 border-amber-300/50 dark:border-amber-500/30 hover:border-amber-400 dark:hover:border-amber-400/50 shadow-lg shadow-amber-500/10'
+                    : 'bg-white/70 dark:bg-slate-800/70 border border-white/60 dark:border-white/10 hover:bg-white/90 dark:hover:bg-slate-800/90 hover:border-indigo-200 dark:hover:border-indigo-800'
+            }`}
         >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between relative z-10 gap-3 sm:gap-4">
                 {/* Left side - Icon and Title */}
                 <div className="flex items-center gap-3 sm:gap-6 flex-1 min-w-0">
-                    <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 ${lecture.status === 'READY' ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'}`}>
+                    <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                        isMetaLecture
+                            ? 'bg-gradient-to-br from-amber-400 via-orange-500 to-amber-500 text-white shadow-lg shadow-amber-500/40'
+                            : lecture.status === 'READY'
+                                ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-400'
+                    }`}>
                         <div className="w-5 h-5 sm:w-6 sm:h-6">{icon}</div>
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-base sm:text-xl text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">{lecture.title}</h4>
+                            <h4 className={`font-bold text-base sm:text-xl text-slate-800 dark:text-white transition-colors truncate ${
+                                isMetaLecture
+                                    ? 'group-hover:text-amber-600 dark:group-hover:text-amber-400'
+                                    : 'group-hover:text-indigo-600 dark:group-hover:text-indigo-400'
+                            }`}>{lecture.title}</h4>
 
                             {/* Match Badges */}
                             {matchType === 'SUMMARY' && (
@@ -77,6 +93,14 @@ export const LectureItem: React.FC<{
                             )}
                             {lecture.processingMode === 'SUMMARY' && (
                                 <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 sm:px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800 text-[10px] sm:text-xs font-bold">מהיר</span>
+                            )}
+                            {lecture.lectureType === 'META' && (
+                                <span className="bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 text-amber-700 dark:text-amber-300 px-1.5 sm:px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-700 text-[10px] sm:text-xs font-bold flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                                    </svg>
+                                    מטה-הרצאה
+                                </span>
                             )}
                         </div>
                     </div>
@@ -160,7 +184,11 @@ export const LectureItem: React.FC<{
                 </div>
 
                 {/* Arrow - positioned absolutely on mobile for better layout */}
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 sm:relative sm:left-auto sm:top-auto sm:translate-y-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-700/50 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center transition-all duration-300 flex-shrink-0">
+                <div className={`absolute left-4 top-1/2 -translate-y-1/2 sm:relative sm:left-auto sm:top-auto sm:translate-y-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center transition-all duration-300 flex-shrink-0 ${
+                    isMetaLecture
+                        ? 'group-hover:bg-amber-500 group-hover:text-white'
+                        : 'group-hover:bg-indigo-600 group-hover:text-white'
+                }`}>
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 sm:w-5 sm:h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                     </svg>

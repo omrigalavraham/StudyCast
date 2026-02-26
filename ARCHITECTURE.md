@@ -1,14 +1,14 @@
 # StudyCast Hebrew - Architecture Documentation
 
 ## Overview
-StudyCast Hebrew is an AI-powered educational platform that helps students learn from lecture presentations. It analyzes uploaded presentations, generates summaries, creates podcast-style audio content, provides AI chat assistance, and offers quizzes for self-assessment.
+StudyCast Hebrew is an AI-powered educational platform that converts lecture materials (presentations, documents) into interactive podcast-style audio content with summaries, chat, quizzes, and flashcards.
 
 **Tech Stack:**
-- Frontend: React 18 + TypeScript + Vite
-- Styling: Tailwind CSS
-- Backend: Supabase (Auth, Database, Storage)
-- AI: Google Gemini API (analysis, chat, quiz generation, TTS)
-- Language: Hebrew (RTL interface)
+- React 18 + TypeScript
+- Vite 6.4
+- Tailwind CSS v4 (CSS-first configuration)
+- Supabase (Auth + PostgreSQL + Storage)
+- Google Gemini API (AI processing)
 
 ---
 
@@ -16,255 +16,505 @@ StudyCast Hebrew is an AI-powered educational platform that helps students learn
 
 ```
 studycast-hebrew/
-├── src/
-│   └── main.tsx              # Entry point, renders AppSupabase
-├── AppSupabase.tsx           # Main app component (UI + state orchestration)
-├── hooks/
-│   └── useSupabaseStore.ts   # Central state management hook (ALL app logic)
+├── components/          # React UI components
+│   ├── modals/         # (Future) Modal components
+│   └── views/          # (Future) View components
+├── hooks/              # Custom React hooks (State Management)
+│   ├── useSupabaseStore.ts      # Main facade (450 lines)
+│   ├── storeTypes.ts             # Shared TypeScript types
+│   ├── storeUtils.ts             # Utility functions
+│   ├── useAuth.ts                # Authentication actions
+│   ├── useCourseActions.ts       # Course CRUD
+│   ├── useLectureActions.ts      # Lecture CRUD + processing
+│   ├── useChatActions.ts         # AI chat with lectures
+│   ├── useInsightActions.ts      # User insights
+│   ├── useQuizActions.ts         # Quiz generation + answering
+│   ├── useFlashcardActions.ts    # Flashcard learning
+│   ├── useProgressActions.ts     # Learning progress tracking
+│   ├── useMigration.ts           # Data migration helper
+│   ├── useModalState.ts          # Modal UI state management
+│   ├── useSmartSearch.ts         # Smart search logic
+│   ├── useAudioSync.ts           # Audio-script synchronization
+│   └── useLectureWorkspace.ts    # Workspace UI state
 ├── services/
-│   ├── supabaseClient.ts     # Supabase client configuration + DB types
-│   ├── supabaseService.ts    # Supabase CRUD operations (mostly unused - using fetch)
-│   └── geminiService.ts      # Gemini AI integration (analysis, TTS, chat, quiz)
-├── components/
-│   ├── AudioPlayer.tsx       # Podcast player with timestamps
-│   ├── QuizSection.tsx       # Quiz UI component
-│   └── MigrationPrompt.tsx   # Data migration modal (disabled)
-├── types/
-│   └── index.ts              # TypeScript type definitions
-├── supabase/
-│   └── schema.sql            # Database schema (run in Supabase SQL Editor)
-└── index.html                # HTML template
+│   ├── supabaseClient.ts         # Supabase client initialization
+│   ├── supabaseService.ts        # Supabase API wrappers (647 lines)
+│   └── geminiService.ts          # Gemini AI API wrappers (507 lines)
+├── AppSupabase.tsx      # Main application component (~970 lines)
+├── index.tsx            # App entry point
+└── types.ts             # Global TypeScript types
 ```
 
 ---
 
-## Key Files Explained
+## Architecture Patterns
 
-### 1. `AppSupabase.tsx` - Main Application Component
-**Purpose:** Renders the entire UI and orchestrates user interactions.
+### 1. **Facade Pattern (State Management)**
 
-**Key Responsibilities:**
-- Renders different views based on `viewState` (DASHBOARD, COURSE, LECTURE)
-- Handles modals for adding/editing courses and lectures
-- Manages file upload for lecture processing
-- Renders lecture content (summary, podcast player, chat, quiz)
-
-**State from useSupabaseStore:**
-- `user`, `authLoading` - Authentication state
-- `courses`, `isDataLoaded` - Data state
-- `viewState`, `activeCourse`, `activeLecture` - Navigation state
-- All action functions (addCourse, processLecture, etc.)
-
-**Important Sections:**
-- Lines 1-60: Imports and hook usage
-- Lines 100-200: Auth screens (Login/Signup/API Key)
-- Lines 200-400: Dashboard view (course list)
-- Lines 400-600: Course view (lecture list)
-- Lines 600-890: Lecture view (summary, podcast, chat, quiz)
-
----
-
-### 2. `hooks/useSupabaseStore.ts` - Central State Management
-**Purpose:** Single source of truth for ALL application state and logic.
-
-**Why Direct Fetch Instead of Supabase Client:**
-The Supabase JS client's `getSession()` and other methods were hanging indefinitely. Solution: Use direct `fetch()` calls to Supabase REST API with manual auth token handling.
-
-**Key Constants:**
-```typescript
-const apiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Supabase anon key
-const baseUrl = 'https://lfqsttzweentcpeyohxu.supabase.co/rest/v1';
-const storageUrl = 'https://lfqsttzweentcpeyohxu.supabase.co/storage/v1';
-const sessionKey = 'sb-lfqsttzweentcpeyohxu-auth-token'; // localStorage key
-```
-
-**State:**
-```typescript
-const [user, setUser] = useState<AppUser | null>(null);
-const [authLoading, setAuthLoading] = useState(true);
-const [courses, setCourses] = useState<Course[]>([]);
-const [isDataLoaded, setIsDataLoaded] = useState(false);
-const [viewState, setViewState] = useState<ViewState>({ type: 'DASHBOARD' });
-const [isDarkMode, setIsDarkMode] = useState(false);
-```
-
-**Key Functions by Category:**
-
-| Category | Functions | Description |
-|----------|-----------|-------------|
-| Auth | `handleSignUp`, `handleSignIn`, `handleSignOut`, `updateApiKey` | User authentication |
-| Courses | `addCourse`, `updateCourse`, `deleteCourse` | Course CRUD |
-| Lectures | `addLecture`, `deleteLecture`, `processLecture`, `generateAudio` | Lecture management |
-| Chat | `sendChatMessage`, `clearChatHistory` | AI chat functionality |
-| Insights | `addInsight`, `deleteInsight` | User notes/insights |
-| Quiz | `initQuiz`, `generateNewQuiz`, `answerQuizQuestion`, `resetQuiz`, `closeQuiz` | Quiz system |
-| Data | `loadData`, `migrateData` | Data loading/migration |
-
-**Important Code Sections:**
-- Lines 28-150: Auth initialization and `onAuthStateChange` listener
-- Lines 154-170: `supabaseFetch` helper function
-- Lines 174-300: `loadData` - Loads all user data from DB
-- Lines 220-290: Audio download from Storage
-- Lines 500-600: `generateAudio` - Creates and uploads podcast audio
-- Lines 600-700: Chat functions
-- Lines 700-800: Insight functions
-- Lines 800-960: Quiz functions
-- Lines 960-1090: Migration function
-
----
-
-### 3. `services/geminiService.ts` - AI Integration
-**Purpose:** All Gemini API interactions.
-
-**Functions:**
-1. `analyzePresentation(apiKey, base64, mimeType, mode)` - Analyzes uploaded presentation
-   - Mode: 'SUMMARY' (brief) or 'FULL_LECTURE' (detailed)
-   - Returns: `{ summary, summaryPoints, script }`
-
-2. `generatePodcastAudio(apiKey, script)` - Generates TTS audio
-   - Uses Gemini's audio generation
-   - Returns: `{ audioBase64, uniqueScript }`
-
-3. `chatWithLecture(apiKey, context, history, message)` - AI chat
-   - Context-aware responses based on lecture content
-   - Returns: AI response text
-
-4. `generateQuiz(apiKey, context, settings)` - Quiz generation
-   - Settings: difficulty, questionCount
-   - Returns: Array of quiz questions
-
----
-
-### 4. `services/supabaseClient.ts` - Supabase Configuration
-**Purpose:** Supabase client setup and TypeScript interfaces.
-
-**Client Config:**
-```typescript
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,  // Important: prevents hanging
-    flowType: 'pkce',
-    storage: window.localStorage
-  }
-});
-```
-
-**DB Type Interfaces:**
-- `DbProfile` - User profile
-- `DbCourse` - Course
-- `DbLecture` - Lecture
-- `DbChatMessage` - Chat message
-- `DbInsight` - User insight
-- `DbQuizSession` - Quiz session
-
----
-
-### 5. `types/index.ts` - TypeScript Types
-**Key Types:**
+The state management was refactored from a monolithic 1,710-line hook into a modular facade pattern:
 
 ```typescript
-interface Course {
-  id: string;
-  name: string;
-  code: string;
-  color: string;
-  lectures: Lecture[];
-}
+// hooks/useSupabaseStore.ts (Facade - 450 lines)
+export const useSupabaseStore = () => {
+  // Core state (useState)
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [viewState, setViewState] = useState<ViewState>({ type: 'DASHBOARD' });
 
-interface Lecture {
-  id: string;
-  title: string;
-  date: string;
-  status: 'EMPTY' | 'ANALYZING' | 'READY' | 'ERROR';
-  processingMode?: 'SUMMARY' | 'FULL_LECTURE';
-  summaryData?: SummaryData;
-  fileData?: FileData;
-  audioBase64?: string;
-  audioGeneratedDate?: string;
-  chatHistory: ChatMessage[];
-  insights: Insight[];
-  quiz?: QuizSession;
-}
+  // Utilities
+  const supabaseFetch = useCallback(...);  // Authenticated fetch
+  const updateLectureLocal = createUpdateLectureLocal(setCourses);
 
-type ViewState =
-  | { type: 'DASHBOARD' }
-  | { type: 'COURSE'; courseId: string }
-  | { type: 'LECTURE'; courseId: string; lectureId: string };
+  // Effects (auth, data loading, theme)
+  useEffect(() => { /* auth logic */ }, []);
+  useEffect(() => { /* load data */ }, [user?.id]);
+  useEffect(() => { /* theme sync */ }, [isDarkMode]);
+
+  // Derived state
+  const activeCourse = useMemo(...);
+  const activeLecture = useMemo(...);
+
+  // Sub-hooks (order matters - Progress first!)
+  const progressActions = useProgressActions({ user, supabaseFetch });
+  const authActions = useAuth({ user, setUser, setCourses, setViewState, supabaseFetch });
+  const courseActions = useCourseActions({ user, setCourses, viewState, setViewState, supabaseFetch });
+  const lectureActions = useLectureActions({ user, courses, setCourses, viewState, setViewState, supabaseFetch, updateLectureLocal });
+  const chatActions = useChatActions({ user, setCourses, supabaseFetch, updateLectureLocal, activeLecture });
+  const insightActions = useInsightActions({ user, setCourses, supabaseFetch });
+  const quizActions = useQuizActions({ user, courses, setCourses, supabaseFetch, activeLecture, updateConceptProgress: progressActions.updateConceptProgress });
+  const flashcardActions = useFlashcardActions({ user, courses, setCourses, supabaseFetch, updateLectureLocal, updateConceptProgress: progressActions.updateConceptProgress });
+  const migrationActions = useMigration({ user, setCourses });
+
+  // Return unified interface (no breaking changes)
+  return {
+    user, courses, viewState, activeCourse, activeLecture,
+    handleSignUp: authActions.handleSignUp,
+    addCourse: courseActions.addCourse,
+    processLecture: lectureActions.processLecture,
+    sendChatMessage: chatActions.sendChatMessage,
+    // ... all other actions
+  };
+};
 ```
+
+**Key Benefits:**
+- Each domain has its own hook (easier to test & maintain)
+- Shared state passed as parameters (no stale closures)
+- Zero breaking changes to consumers
+- Cross-hook dependencies handled via facade (Quiz/Flashcards depend on Progress)
+
+---
+
+### 2. **Custom Hooks Pattern (UI State)**
+
+AppSupabase.tsx was refactored to extract UI state management into custom hooks:
+
+```typescript
+// AppSupabase.tsx
+const AppSupabase = () => {
+  const { user, courses, activeCourse, activeLecture, ... } = useSupabaseStore();
+
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const { filteredLectures } = useSmartSearch({ activeCourse, searchQuery });
+
+  // Modals
+  const modalState = useModalState();  // All modal states + setters
+
+  // Audio Sync
+  const audioSync = useAudioSync({ activeLecture });
+  // Returns: parsedScript, activeLineIndex, handleAudioProgress, lineRefs, ...
+
+  // Workspace
+  const workspace = useLectureWorkspace();
+  // Returns: isGeneratingAudio, forcedTab, chatDraft, ...
+
+  // ... JSX rendering
+};
+```
+
+**Extracted Hooks:**
+- `useModalState()` - Manages 6 modal states (add/edit course/lecture, processing, preview)
+- `useSmartSearch()` - Filters lectures by title/summary/concepts/insights
+- `useAudioSync()` - Parses script, tracks active line, syncs with audio, auto-scrolls
+- `useLectureWorkspace()` - Manages workspace UI states (audio generation, flashcard generation, forced tab navigation, chat draft)
 
 ---
 
 ## Data Flow
 
-### 1. Authentication Flow
+### Authentication Flow
 ```
-User enters credentials
-  → handleSignIn() calls supabase.auth.signIn()
-  → onAuthStateChange fires with 'SIGNED_IN'
-  → Fetch profile via REST API
-  → setUser() with profile data
-  → loadData() fetches all user data
-```
-
-### 2. Lecture Processing Flow
-```
-User uploads file
-  → processLecture() called
-  → Update status to 'ANALYZING'
-  → analyzePresentation() via Gemini
-  → Save summaryData to DB
-  → Update status to 'READY'
+1. User → SupabaseAuthScreen (signUp/signIn)
+2. useSupabaseStore → auth effect → fetchProfile
+3. Supabase session → localStorage
+4. User state updated → triggers data loading
+5. AppSupabase re-renders with user data
 ```
 
-### 3. Podcast Generation Flow
+### Lecture Processing Flow
 ```
-User clicks "Generate Podcast"
-  → generateAudio() called
-  → generatePodcastAudio() via Gemini
-  → Convert base64 to blob
-  → Upload to Supabase Storage (audio-files bucket)
-  → Save audio_url to lectures table
-  → Keep audioBase64 in memory for playback
+1. User uploads file → FileUpload component
+2. AppSupabase → onFileSelected → opens ProcessingModal
+3. User selects mode (FULL_LECTURE | SUMMARY)
+4. processLecture → geminiService.analyzePresentation
+5. Gemini returns: summary, concepts, script with timestamps
+6. Data saved to Supabase → lectures table
+7. UI updates with processed lecture
 ```
 
-### 4. Data Loading Flow
+### Audio Generation Flow
 ```
-App loads / User signs in
-  → loadData() called
-  → Fetch: courses, lectures, chat_messages, insights, quiz_sessions
-  → For each lecture with audio_url: download from Storage
-  → Group and merge data into Course[] structure
-  → setCourses()
+1. User clicks "Generate Audio" → handleGenerateAudioClick
+2. generateAudio → geminiService.generatePodcastAudio
+3. Gemini TTS API returns base64 audio
+4. Audio uploaded to Supabase Storage
+5. Lecture updated with audioBase64 + audioUrl
+6. AudioPlayer component renders with audio
+```
+
+### Audio Sync Flow
+```
+1. AudioPlayer emits onProgressUpdate(currentTime, duration)
+2. useAudioSync.handleAudioProgress → finds active line by:
+   - Timestamps (if available)
+   - OR text length ratio
+3. Updates activeLineIndex → triggers scroll effect
+4. Script line highlights + auto-scrolls into view
+5. Related concept index updates (activePointIndex)
+```
+
+### Smart Search Flow
+```
+1. User types in SmartSearchBar → setSearchQuery
+2. useSmartSearch filters lectures by:
+   - Priority 1: Title match → matchType: 'TITLE'
+   - Priority 2: Summary text → matchType: 'SUMMARY'
+   - Priority 3: Concept (summaryPoints) → matchType: 'CONCEPT'
+   - Priority 4: User insights → matchType: 'INSIGHT'
+3. Clicking lecture with matchType → forces relevant tab
+   - SUMMARY → opens Summary tab
+   - CONCEPT → opens Concepts tab
+   - INSIGHT → opens Insights tab
 ```
 
 ---
 
-## Important Notes for AI Agents
+## Key Components
 
-### Known Issues & Solutions
-1. **Supabase client hanging:** Use direct `fetch()` to REST API instead of Supabase JS methods
-2. **Auth state not updating:** Fixed by using fetch in `onAuthStateChange` listener
-3. **Audio not persisting:** Fixed by uploading to Storage bucket
+### AppSupabase.tsx (~970 lines)
+Main application component with route-based rendering:
 
-### API Keys & URLs
-- Supabase URL: `https://lfqsttzweentcpeyohxu.supabase.co`
-- Supabase Anon Key: Stored in code (public key, safe to expose)
-- Gemini API Key: Stored per-user in `profiles.gemini_api_key`
+**Views:**
+- `DASHBOARD` - Grid of courses (CourseCard components)
+- `COURSE` - List of lectures with SmartSearchBar (LectureItem components)
+- `LECTURE` - Full lecture workspace:
+  - SmartBoard (tabs: Concepts, Summary, Chat, Quiz, Flashcards, Insights, Progress)
+  - AudioPlayer + Script viewer
+  - Context actions (Explain/Ask)
 
-### Storage Structure
-- Bucket: `audio-files`
-- Path pattern: `{user_id}/{lecture_id}.mp3`
-- Access: Private (requires auth)
+**Conditional Screens (Guards):**
+- Auth loading screen
+- Login screen (if !user)
+- Gender selection (if !user.gender)
+- API key setup (if !user.apiKey)
+- Data loading screen (if !isDataLoaded)
 
-### State Management Pattern
-- All state in `useSupabaseStore` hook
-- Local state updated immediately for UX
-- Database updated asynchronously
-- No external state management library (pure React hooks)
+**Modals (Inline - Future refactor):**
+- Processing Mode Selection
+- Add/Edit Course
+- Add/Edit Lecture
+- Preview Lecture
+- Expanded Concept Modal
 
-### RTL Support
-- App is entirely in Hebrew
-- Tailwind's RTL utilities used where needed
-- Text direction handled by HTML `dir="rtl"`
+### SmartBoard (~250 lines)
+Tabbed interface for lecture interaction:
+- **Concepts** - Visual cards for each summaryPoint
+- **Summary** - Full summary text
+- **Chat** - AI conversation about lecture
+- **Quiz** - Generated quiz with progress tracking
+- **Flashcards** - Spaced repetition learning
+- **Insights** - User-created notes
+- **Progress** (NEW) - Learning progress analytics
+
+### AudioPlayer (~350 lines)
+Custom audio player with:
+- Play/pause controls
+- Progress scrubbing
+- Speed control (0.5x - 2x)
+- Audio regeneration
+- Progress tracking callback
+
+---
+
+## Database Schema (Supabase)
+
+### Tables
+
+**profiles**
+```sql
+id: uuid (PK, references auth.users)
+name: text
+gender: 'male' | 'female' | null
+gemini_api_key: text | null
+created_at: timestamp
+```
+
+**courses**
+```sql
+id: uuid (PK)
+user_id: uuid (FK → profiles)
+name: text
+code: text
+color: text (Tailwind class)
+created_at: timestamp
+```
+
+**lectures**
+```sql
+id: uuid (PK)
+user_id: uuid (FK → profiles)
+course_id: uuid (FK → courses)
+title: text
+date: text
+status: 'EMPTY' | 'ANALYZING' | 'READY' | 'ERROR'
+processing_mode: 'FULL_LECTURE' | 'SUMMARY' | null
+error_msg: text | null
+summary_data: jsonb (summary, summaryPoints, script with timestamps)
+file_name: text | null
+file_mime_type: text | null
+audio_url: text | null (Storage path)
+audio_generated_date: text | null
+created_at: timestamp
+```
+
+**chat_messages**
+```sql
+id: uuid (PK)
+user_id: uuid (FK → profiles)
+lecture_id: uuid (FK → lectures)
+role: 'user' | 'ai'
+content: text
+timestamp: timestamp
+```
+
+**insights**
+```sql
+id: uuid (PK)
+user_id: uuid (FK → profiles)
+lecture_id: uuid (FK → lectures)
+content: text
+date: text
+created_at: timestamp
+```
+
+**quiz_sessions**
+```sql
+id: uuid (PK)
+user_id: uuid (FK → profiles)
+lecture_id: uuid (FK → lectures)
+status: 'IDLE' | 'ACTIVE' | 'COMPLETED'
+difficulty: 'easy' | 'medium' | 'hard'
+question_count: int
+questions: jsonb[]
+user_answers: jsonb
+score: int
+created_at: timestamp
+updated_at: timestamp
+```
+
+**flashcard_sessions**
+```sql
+id: uuid (PK)
+user_id: uuid (FK → profiles)
+lecture_id: uuid (FK → lectures)
+status: 'IDLE' | 'LEARNING' | 'COMPLETED'
+cards: jsonb[]
+current_index: int
+known_count: int
+created_at: timestamp
+updated_at: timestamp
+```
+
+**concept_progress** (NEW - for learning analytics)
+```sql
+id: uuid (PK)
+user_id: uuid (FK → profiles)
+lecture_id: uuid (FK → lectures)
+concept_index: int
+concept_text: text
+mastery_level: 'NOT_STARTED' | 'LEARNING' | 'PRACTICING' | 'MASTERED'
+quiz_correct: int
+quiz_total: int
+flashcard_known: int
+flashcard_total: int
+last_practiced: timestamp
+created_at: timestamp
+updated_at: timestamp
+```
+
+### Storage Buckets
+
+**audio-files**
+- Path pattern: `{userId}/{lectureId}.mp3`
+- Public read access
+- RLS policies for write access
+
+---
+
+## API Integrations
+
+### Supabase API
+All calls use authenticated `supabaseFetch` helper:
+```typescript
+const supabaseFetch = async (endpoint: string, options?: RequestInit) => {
+  const token = localStorage.getItem('sb-xxx-auth-token');
+  return fetch(`https://xxx.supabase.co/rest/v1${endpoint}`, {
+    headers: {
+      'apikey': 'xxx',
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Prefer': options?.method === 'POST' ? 'return=representation' : ''
+    }
+  });
+};
+```
+
+### Gemini API (via services/geminiService.ts)
+
+**analyzePresentation(text, mode, apiKey)**
+- Input: Raw text from PPT/PDF
+- Mode: FULL_LECTURE (in-depth) | SUMMARY (quick)
+- Output: `{ summary, summaryPoints[], script[] }`
+- Script includes: speaker, text, startTime, endTime, relatedPointIndex
+
+**generatePodcastAudio(script, gender, apiKey)**
+- Input: Script array with speaker + text
+- Gender: 'male' | 'female' (for voice selection)
+- Uses Gemini multimodal model + TTS
+- Output: base64 audio string (MP3)
+
+**chatWithLecture(summary, concepts, chatHistory, userMessage, apiKey)**
+- Context-aware AI chat about lecture content
+- Maintains conversation history
+- Output: AI response text
+
+**generateQuiz(summary, concepts, settings, apiKey)**
+- Settings: difficulty, questionCount
+- Generates multiple-choice questions
+- Each question has: conceptIndex for progress tracking
+- Output: `{ id, question, options[], correctAnswer, explanation, conceptIndex }`
+
+---
+
+## Important Notes
+
+### Dark Mode (Tailwind v4)
+The project uses Tailwind CSS v4 with CSS-first configuration. Dark mode is enabled via:
+```css
+/* index.css */
+@custom-variant dark (&:where(.dark, .dark *));
+```
+NOT via `tailwind.config.js` (v4 doesn't read config files)
+
+### Migration Status
+- ✅ useSupabaseStore split into modules (hooks/)
+- ✅ UI state extracted to custom hooks
+- ⏸️ Modal components NOT yet extracted (still inline in AppSupabase.tsx)
+- ⏸️ View components NOT yet extracted (still inline in AppSupabase.tsx)
+
+### Dead Code Removed
+- `App.tsx` (938 lines) - Legacy version using localStorage
+- `hooks/useAppStore.ts` (570 lines) - Legacy IndexedDB store
+- Total: 1,508 lines of dead code removed
+
+### Cross-Hook Dependencies
+**IMPORTANT:** Call order matters in useSupabaseStore facade!
+```typescript
+// ✅ Correct order
+const progressActions = useProgressActions(...);  // FIRST
+const quizActions = useQuizActions({
+  updateConceptProgress: progressActions.updateConceptProgress  // depends on progress
+});
+
+// ❌ Wrong order - will break
+const quizActions = useQuizActions({ updateConceptProgress: ??? });
+const progressActions = useProgressActions(...);  // Too late!
+```
+
+Quiz and Flashcard hooks call `updateConceptProgress` to track learning. Progress hook must be initialized first.
+
+---
+
+## Common Tasks
+
+### Adding a New Feature
+1. Determine if it's data or UI related
+2. Data feature → Create new hook in `hooks/` + add to facade
+3. UI feature → Add to existing component or create new one
+4. Update types in `types.ts` if needed
+5. Add database migration if needed
+
+### Debugging State Issues
+1. Check `useSupabaseStore` facade - is the hook called in correct order?
+2. Check if shared state is passed correctly to sub-hooks
+3. Use React DevTools to inspect hook state
+4. Check browser console for Supabase errors
+
+### Testing a New Agent Session
+When starting a new conversation with an AI agent:
+1. Point agent to this ARCHITECTURE.md file first
+2. Agent reads this file to understand the codebase structure
+3. Agent can then navigate to specific files as needed
+4. No need to read entire codebase upfront
+
+---
+
+## File Size Reference
+Use this to prioritize what to read:
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| AppSupabase.tsx | ~970 | Main app (needs further splitting) |
+| services/supabaseService.ts | 647 | Supabase wrappers |
+| services/geminiService.ts | 507 | Gemini AI wrappers |
+| hooks/useSupabaseStore.ts | 450 | State management facade |
+| components/AudioPlayer.tsx | 352 | Audio player UI |
+| components/QuizPanel.tsx | 278 | Quiz interface |
+| hooks/useFlashcardActions.ts | 268 | Flashcard logic |
+| components/FlashcardPanel.tsx | 268 | Flashcard UI |
+| components/ProgressPanel.tsx | 266 | Progress analytics UI |
+| components/SmartBoard.tsx | 251 | Main tabbed interface |
+
+---
+
+## Recent Changes (2025-01-27)
+
+### Completed
+1. ✅ Removed dead code: App.tsx + useAppStore.ts (-1,508 lines)
+2. ✅ Split useSupabaseStore into 9 sub-hooks using Facade Pattern
+3. ✅ Extracted UI state management from AppSupabase.tsx:
+   - useModalState (modal states)
+   - useSmartSearch (search logic)
+   - useAudioSync (audio synchronization)
+   - useLectureWorkspace (workspace states)
+4. ✅ Added dark mode support for Tailwind v4
+5. ✅ Fixed React hooks ordering bug in QuizPanel.tsx
+6. ✅ Added Progress tracking feature with concept_progress table
+
+### Pending (Next Session)
+- Extract Modal components from AppSupabase.tsx
+- Extract View components (DashboardView, CourseView, LectureView)
+- Final AppSupabase.tsx reduction to ~400 lines
+
+---
+
+## Getting Started (For New Agents)
+
+1. Read this ARCHITECTURE.md file completely
+2. Check `types.ts` for data structures
+3. Look at `hooks/useSupabaseStore.ts` (facade) to understand state management
+4. Check `AppSupabase.tsx` to understand UI flow
+5. Use `Grep` or `Read` tools to dive into specific files as needed
+
+**Pro tip:** Don't try to read all files upfront. Use this architecture doc to understand the structure, then navigate to specific files only when needed.
