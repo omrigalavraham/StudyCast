@@ -7,13 +7,9 @@ The application uses Supabase as a backend-as-a-service, providing:
 - **Storage Buckets** - File storage for audio files
 - **Authentication** - Email/password auth with session management
 
-**Supabase Project URL:** `https://lfqsttzweentcpeyohxu.supabase.co`
-
 ---
 
-## Database Schema
-
-### Entity Relationship Diagram
+## Entity Relationship Diagram
 ```
 auth.users (Supabase managed)
     │
@@ -25,7 +21,10 @@ auth.users (Supabase managed)
                     │
                     ├──< chat_messages (1:N)
                     ├──< insights (1:N)
-                    └──< quiz_sessions (1:1)
+                    ├──< highlights (1:N)
+                    ├──< quiz_sessions (1:1)
+                    ├──< flashcard_sessions (1:1)
+                    └──< concept_progress (1:N, per concept)
 ```
 
 ---
@@ -37,24 +36,19 @@ Extends Supabase Auth users with additional profile data.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | UUID | Primary key, references `auth.users(id)` |
+| `id` | UUID (PK) | References `auth.users(id)` |
 | `name` | TEXT | User display name |
+| `gender` | TEXT | 'male' or 'female' (for AI voice selection) |
 | `gemini_api_key` | TEXT | User's Gemini API key (nullable) |
 | `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| `updated_at` | TIMESTAMPTZ | Auto-updated on change |
 
-**RLS Policies:**
-- Users can only SELECT, UPDATE, INSERT their own profile
-- Auto-created on user signup via trigger
+**Trigger:** Auto-created on signup via `handle_new_user()` trigger.
 
-**Usage in App:**
-```typescript
-// Fetch profile
-GET /profiles?id=eq.{user_id}&select=*
-
-// Update API key
-PATCH /profiles?id=eq.{user_id}
-Body: { gemini_api_key: "..." }
+**API:**
+```
+GET    /profiles?id=eq.{user_id}&select=*
+PATCH  /profiles?id=eq.{user_id}  →  { gemini_api_key, gender, name }
 ```
 
 ---
@@ -64,106 +58,82 @@ User's courses/subjects.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | UUID | Primary key (auto-generated) |
-| `user_id` | UUID | Owner, references `auth.users(id)` |
+| `id` | UUID (PK) | Auto-generated |
+| `user_id` | UUID (FK) | References `auth.users(id)` |
 | `name` | TEXT | Course name |
-| `code` | TEXT | Course code (e.g., "PHY-101") |
+| `code` | TEXT | Course code (e.g., "CS-101") |
 | `color` | TEXT | Tailwind color class (e.g., "bg-indigo-500") |
 | `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| `updated_at` | TIMESTAMPTZ | Auto-updated |
 
-**RLS Policies:**
-- Users can only CRUD their own courses
-- CASCADE delete to lectures
-
-**Usage in App:**
-```typescript
-// Fetch all courses
-GET /courses?user_id=eq.{user_id}&select=*&order=created_at.desc
-
-// Create course
-POST /courses
-Body: { user_id, name, code, color }
-
-// Update course
-PATCH /courses?id=eq.{course_id}
-Body: { name }
-
-// Delete course
-DELETE /courses?id=eq.{course_id}
+**API:**
+```
+GET    /courses?user_id=eq.{user_id}&select=*&order=created_at.desc
+POST   /courses  →  { user_id, name, code, color }
+PATCH  /courses?id=eq.{id}  →  { name }
+DELETE /courses?id=eq.{id}
 ```
 
 ---
 
 ### 3. `lectures`
-Lectures within courses. This is the most complex table.
+Lectures within courses. Most complex table. Supports both regular and meta-lectures.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | UUID | Primary key (auto-generated) |
-| `course_id` | UUID | Parent course, references `courses(id)` |
-| `user_id` | UUID | Owner, references `auth.users(id)` |
+| `id` | UUID (PK) | Auto-generated |
+| `course_id` | UUID (FK) | References `courses(id)` |
+| `user_id` | UUID (FK) | References `auth.users(id)` |
 | `title` | TEXT | Lecture title |
-| `date` | TEXT | Creation date (Hebrew format) |
-| `status` | TEXT | Processing status (see below) |
+| `date` | TEXT | Creation date (Hebrew format string) |
+| `status` | TEXT | 'EMPTY', 'ANALYZING', 'READY', 'ERROR' |
 | `processing_mode` | TEXT | 'SUMMARY' or 'FULL_LECTURE' |
 | `error_msg` | TEXT | Error message if status is ERROR |
-| `summary_data` | JSONB | Analysis results (see below) |
+| `summary_data` | JSONB | AI analysis output (see structure below) |
 | `file_name` | TEXT | Original uploaded file name |
 | `file_mime_type` | TEXT | File MIME type |
-| `audio_url` | TEXT | Path to audio in Storage bucket |
+| `audio_url` | TEXT | Path to audio file in Storage bucket |
 | `audio_generated_date` | TEXT | When podcast was generated |
+| `lecture_type` | TEXT | 'REGULAR' or 'META' (default: null = REGULAR) |
+| `source_lecture_ids` | JSONB | Array of lecture IDs merged into this meta-lecture |
+| `meta_synthesis_metadata` | JSONB | Meta-lecture synthesis details |
 | `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| `updated_at` | TIMESTAMPTZ | Auto-updated |
 
-**Status Values:**
-| Status | Description |
-|--------|-------------|
-| `EMPTY` | Newly created, no content |
-| `ANALYZING` | Currently processing with Gemini |
-| `READY` | Analysis complete, content available |
-| `ERROR` | Analysis failed |
-
-**summary_data JSONB Structure:**
+**summary_data JSONB structure:**
 ```json
 {
-  "summary": "תקציר ההרצאה...",
+  "summary": "תקציר כללי של ההרצאה...",
+  "detailedSummary": "סיכום מפורט מלא עם **מונחים מודגשים**, סעיפים ממוספרים, דוגמאות...",
   "summaryPoints": [
-    "נקודה ראשונה",
-    "נקודה שנייה"
+    { "point": "מושג מרכזי", "details": "הסבר מפורט" }
   ],
   "script": [
-    {
-      "speaker": "HOST",
-      "text": "שלום וברוכים הבאים...",
-      "startTime": 0,
-      "endTime": 5.2
-    },
-    {
-      "speaker": "GUEST",
-      "text": "תודה רבה...",
-      "startTime": 5.2,
-      "endTime": 10.1
-    }
+    { "speaker": "עומרי:", "text": "שלום וברוכים הבאים...", "startTime": 0, "endTime": 5.2, "relatedPointIndex": 0 }
   ]
 }
 ```
 
-**Usage in App:**
-```typescript
-// Fetch all user lectures
-GET /lectures?user_id=eq.{user_id}&select=*&order=created_at.desc
+**meta_synthesis_metadata JSONB structure (for META lectures):**
+```json
+{
+  "sourceLectures": [
+    { "lectureId": "uuid", "title": "הרצאה 1", "conceptMapping": [0, 1, 3] }
+  ],
+  "conceptOrigins": [
+    { "conceptIndex": 0, "sourceLectureIds": ["uuid1", "uuid2"], "mergedFrom": [0, 2] }
+  ],
+  "synthesisDate": "2025-01-27",
+  "synthesisModel": "gemini-2.5-flash"
+}
+```
 
-// Create lecture
-POST /lectures
-Body: { user_id, course_id, title, date, status: 'EMPTY' }
-
-// Update lecture (processing)
-PATCH /lectures?id=eq.{lecture_id}
-Body: { status, summary_data, audio_url, ... }
-
-// Delete lecture
-DELETE /lectures?id=eq.{lecture_id}
+**API:**
+```
+GET    /lectures?user_id=eq.{user_id}&select=*&order=created_at.desc
+POST   /lectures  →  { user_id, course_id, title, date, status: 'EMPTY' }
+PATCH  /lectures?id=eq.{id}  →  { status, summary_data, audio_url, ... }
+DELETE /lectures?id=eq.{id}
 ```
 
 ---
@@ -173,29 +143,18 @@ AI chat history for each lecture.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | UUID | Primary key (auto-generated) |
-| `lecture_id` | UUID | Parent lecture, references `lectures(id)` |
-| `user_id` | UUID | Owner, references `auth.users(id)` |
+| `id` | UUID (PK) | Auto-generated |
+| `lecture_id` | UUID (FK) | References `lectures(id)` |
+| `user_id` | UUID (FK) | References `auth.users(id)` |
 | `role` | TEXT | 'user' or 'ai' |
 | `content` | TEXT | Message content |
 | `timestamp` | TIMESTAMPTZ | Message timestamp |
 
-**RLS Policies:**
-- Users can SELECT, INSERT, DELETE their own messages
-- No UPDATE (messages are immutable)
-- CASCADE delete when lecture deleted
-
-**Usage in App:**
-```typescript
-// Fetch chat history
-GET /chat_messages?user_id=eq.{user_id}&select=*&order=timestamp.asc
-
-// Add message
-POST /chat_messages
-Body: { user_id, lecture_id, role, content, timestamp }
-
-// Clear chat
-DELETE /chat_messages?lecture_id=eq.{lecture_id}
+**API:**
+```
+GET    /chat_messages?user_id=eq.{user_id}&select=*&order=timestamp.asc
+POST   /chat_messages  →  { user_id, lecture_id, role, content, timestamp }
+DELETE /chat_messages?lecture_id=eq.{lecture_id}   (clear chat)
 ```
 
 ---
@@ -205,90 +164,155 @@ User's personal notes/insights for lectures.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | UUID | Primary key (auto-generated) |
-| `lecture_id` | UUID | Parent lecture, references `lectures(id)` |
-| `user_id` | UUID | Owner, references `auth.users(id)` |
+| `id` | UUID (PK) | Auto-generated |
+| `lecture_id` | UUID (FK) | References `lectures(id)` |
+| `user_id` | UUID (FK) | References `auth.users(id)` |
 | `content` | TEXT | Insight content |
 | `date` | TEXT | Creation date (Hebrew format) |
 | `created_at` | TIMESTAMPTZ | Creation timestamp |
 
-**Usage in App:**
-```typescript
-// Fetch insights
-GET /insights?user_id=eq.{user_id}&select=*&order=created_at.desc
-
-// Add insight
-POST /insights
-Body: { user_id, lecture_id, content, date }
-
-// Delete insight
-DELETE /insights?id=eq.{insight_id}
+**API:**
+```
+GET    /insights?user_id=eq.{user_id}&select=*&order=created_at.desc
+POST   /insights  →  { user_id, lecture_id, content, date }
+DELETE /insights?id=eq.{id}
 ```
 
 ---
 
-### 6. `quiz_sessions`
-Quiz state for each lecture.
+### 6. `highlights`
+Text passages marked as "important for exam" in lecture summaries.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | UUID | Primary key (auto-generated) |
-| `lecture_id` | UUID | Parent lecture, references `lectures(id)` |
-| `user_id` | UUID | Owner, references `auth.users(id)` |
-| `status` | TEXT | Quiz status (see below) |
-| `difficulty` | TEXT | 'EASY', 'MEDIUM', or 'HARD' |
+| `id` | UUID (PK) | Auto-generated |
+| `lecture_id` | UUID (FK) | References `lectures(id)` |
+| `user_id` | UUID (FK) | References `auth.users(id)` |
+| `text` | TEXT | The highlighted text |
+| `start_offset` | INT | Character offset start in detailedSummary |
+| `end_offset` | INT | Character offset end in detailedSummary |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+
+**API:**
+```
+GET    /highlights?user_id=eq.{user_id}&select=*&order=created_at.desc
+POST   /highlights  →  { user_id, lecture_id, text, start_offset, end_offset }
+DELETE /highlights?id=eq.{id}
+```
+
+**SQL to create (run in Supabase SQL Editor):**
+```sql
+CREATE TABLE IF NOT EXISTS highlights (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  lecture_id UUID REFERENCES lectures(id) ON DELETE CASCADE NOT NULL,
+  text TEXT NOT NULL,
+  start_offset INT NOT NULL DEFAULT 0,
+  end_offset INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE highlights ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own highlights"
+  ON highlights FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX idx_highlights_lecture_id ON highlights(lecture_id);
+CREATE INDEX idx_highlights_user_id ON highlights(user_id);
+```
+
+---
+
+### 7. `quiz_sessions`
+Quiz state for each lecture. One quiz session per lecture at a time.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `lecture_id` | UUID (FK) | References `lectures(id)` |
+| `user_id` | UUID (FK) | References `auth.users(id)` |
+| `status` | TEXT | 'SETUP', 'LOADING', 'ACTIVE', 'COMPLETED' |
+| `difficulty` | TEXT | 'EASY', 'MEDIUM', 'HARD' |
 | `question_count` | INT | Number of questions |
-| `questions` | JSONB | Array of questions (see below) |
+| `questions` | JSONB | Array of question objects |
 | `user_answers` | JSONB | Map of questionId → answerIndex |
 | `score` | INT | Final score (0-100) |
 | `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| `updated_at` | TIMESTAMPTZ | Auto-updated |
 
-**Status Values:**
-| Status | Description |
-|--------|-------------|
-| `SETUP` | Configuring quiz settings |
-| `LOADING` | Generating questions via Gemini |
-| `ACTIVE` | Quiz in progress |
-| `COMPLETED` | All questions answered |
-
-**questions JSONB Structure:**
+**questions JSONB structure:**
 ```json
 [
   {
     "id": "q1",
-    "question": "מהי הנוסחה לחישוב...?",
+    "text": "מהי הנוסחה לחישוב...?",
     "options": ["אפשרות א", "אפשרות ב", "אפשרות ג", "אפשרות ד"],
-    "correctOptionIndex": 2
+    "correctOptionIndex": 2,
+    "explanation": "הסבר מדוע זו התשובה הנכונה...",
+    "conceptIndex": 0
   }
 ]
 ```
 
-**user_answers JSONB Structure:**
+**user_answers JSONB structure:**
 ```json
-{
-  "q1": 2,
-  "q2": 0,
-  "q3": 1
-}
+{ "q1": 2, "q2": 0, "q3": 1 }
 ```
 
-**Usage in App:**
-```typescript
-// Fetch quiz sessions
-GET /quiz_sessions?user_id=eq.{user_id}&select=*
-
-// Create quiz session
-POST /quiz_sessions
-Body: { user_id, lecture_id, status: 'SETUP', difficulty, question_count, questions: [], user_answers: {}, score: 0 }
-
-// Update quiz
-PATCH /quiz_sessions?lecture_id=eq.{lecture_id}
-Body: { status, questions, user_answers, score }
-
-// Delete quiz
+**API:**
+```
+GET    /quiz_sessions?user_id=eq.{user_id}&select=*
+POST   /quiz_sessions  →  { user_id, lecture_id, status: 'SETUP', ... }
+PATCH  /quiz_sessions?lecture_id=eq.{lecture_id}  →  { status, questions, user_answers, score }
 DELETE /quiz_sessions?lecture_id=eq.{lecture_id}
 ```
+
+---
+
+### 8. `flashcard_sessions`
+Flashcard learning state per lecture.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `lecture_id` | UUID (FK) | References `lectures(id)` |
+| `user_id` | UUID (FK) | References `auth.users(id)` |
+| `status` | TEXT | 'IDLE', 'LEARNING', 'COMPLETED' |
+| `cards` | JSONB | Array of flashcard objects |
+| `current_index` | INT | Current card position |
+| `known_count` | INT | Number of cards marked as known |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | Auto-updated |
+
+**cards JSONB structure:**
+```json
+[
+  { "id": "f1", "front": "מהו מושג X?", "back": "הסבר על מושג X...", "known": false }
+]
+```
+
+---
+
+### 9. `concept_progress`
+Per-concept learning analytics. Tracks mastery from quizzes and flashcards.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `user_id` | UUID (FK) | References `auth.users(id)` |
+| `lecture_id` | UUID (FK) | References `lectures(id)` |
+| `concept_index` | INT | Index in summaryPoints array |
+| `concept_text` | TEXT | The concept text |
+| `mastery_level` | TEXT | 'NOT_STARTED', 'WEAK', 'LEARNING', 'STRONG', 'MASTERED' |
+| `quiz_correct` | INT | Correct quiz answers for this concept |
+| `quiz_total` | INT | Total quiz attempts for this concept |
+| `flashcard_known` | INT | Times marked "known" in flashcards |
+| `flashcard_total` | INT | Total flashcard reviews |
+| `last_practiced` | TIMESTAMPTZ | Last practice timestamp |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | Auto-updated |
 
 ---
 
@@ -297,56 +321,29 @@ DELETE /quiz_sessions?lecture_id=eq.{lecture_id}
 ### Bucket: `audio-files`
 Stores generated podcast audio files.
 
-**Configuration:**
-- Visibility: Private (not public)
-- File type: MP3 audio
-
 **Path Structure:**
 ```
-audio-files/
-  └── {user_id}/
-        └── {lecture_id}.mp3
+audio-files/{user_id}/{lecture_id}.mp3
 ```
 
-**RLS Policies:**
-- Users can only upload to their own folder (`user_id/`)
-- Users can only view/delete files in their own folder
-
-**Usage in App:**
-```typescript
-// Upload audio
+**API:**
+```
 POST /storage/v1/object/audio-files/{user_id}/{lecture_id}.mp3
-Headers: { 'Content-Type': 'audio/mp3', 'x-upsert': 'true' }
-Body: <audio blob>
+  Headers: { 'Content-Type': 'audio/mp3', 'x-upsert': 'true' }
+  Body: <audio blob>
 
-// Download audio
-GET /storage/v1/object/audio-files/{audio_url}
-// Returns audio file blob
+GET  /storage/v1/object/audio-files/{audio_url}
+  Returns: audio file blob
 ```
 
 ---
 
 ## Triggers & Functions
 
-### 1. `update_updated_at_column()`
-Automatically updates `updated_at` timestamp on row update.
-
-**Applied to:**
-- `profiles`
-- `courses`
-- `lectures`
-- `quiz_sessions`
-
-### 2. `handle_new_user()`
-Automatically creates a profile when a new user signs up.
-
-**Trigger:** `on_auth_user_created` (AFTER INSERT on `auth.users`)
-
-**Behavior:**
-```sql
-INSERT INTO profiles (id, name)
-VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'name', 'משתמש חדש'));
-```
+| Trigger | Table | Purpose |
+|---------|-------|---------|
+| `update_updated_at_column()` | profiles, courses, lectures, quiz_sessions | Auto-update `updated_at` on row change |
+| `handle_new_user()` | auth.users (AFTER INSERT) | Auto-create profile for new signups |
 
 ---
 
@@ -359,54 +356,54 @@ VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'name', 'משתמש חדש'));
 | `lectures` | `idx_lectures_user_id` | `user_id` |
 | `chat_messages` | `idx_chat_messages_lecture_id` | `lecture_id` |
 | `insights` | `idx_insights_lecture_id` | `lecture_id` |
+| `highlights` | `idx_highlights_lecture_id` | `lecture_id` |
+| `highlights` | `idx_highlights_user_id` | `user_id` |
 | `quiz_sessions` | `idx_quiz_sessions_lecture_id` | `lecture_id` |
+| `concept_progress` | `idx_concept_progress_lecture` | `user_id, lecture_id` |
 
 ---
 
 ## API Access Pattern
 
-The app uses direct REST API calls instead of the Supabase JS client (due to client hanging issues).
+The app uses **direct REST API calls** (not Supabase JS client) via `supabaseFetch` utility.
 
-**Base URL:** `https://lfqsttzweentcpeyohxu.supabase.co/rest/v1`
+**Base URL:** `{VITE_SUPABASE_URL}/rest/v1`
 
 **Required Headers:**
 ```typescript
 {
-  'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',  // Supabase anon key
-  'Authorization': `Bearer ${accessToken}`,              // User's JWT from session
+  'apikey': VITE_SUPABASE_ANON_KEY,
+  'Authorization': `Bearer ${accessToken}`,  // From session
   'Content-Type': 'application/json',
-  'Prefer': 'return=representation'                      // For POST/PATCH to return data
+  'Prefer': 'return=representation'          // For POST/PATCH to return data
 }
 ```
 
 **Session Storage:**
-- Key: `sb-lfqsttzweentcpeyohxu-auth-token`
+- Key: `sb-{project-ref}-auth-token`
 - Location: `localStorage`
-- Contains: `{ access_token, refresh_token, user, ... }`
 
 ---
 
-## Important Notes for AI Agents
+## Data Loading Strategy
 
-### Data Loading Strategy
-The app loads ALL user data on login for offline-like experience:
-1. Courses
-2. Lectures (with audio download from Storage)
-3. Chat messages
-4. Insights
-5. Quiz sessions
+On login, ALL user data is loaded at once for offline-like experience:
 
-Then merges into nested structure: `Course[] → Lecture[] → (chat, insights, quiz)`
+```typescript
+// In useSupabaseStore, after auth:
+1. Fetch courses
+2. Fetch lectures
+3. Fetch chat_messages
+4. Fetch insights
+5. Fetch highlights (with try/catch for missing table)
+6. Fetch quiz_sessions
+7. Fetch flashcard_sessions
+8. Fetch concept_progress
+9. Fetch audio files from Storage
+// Then merge into nested structure: Course[] → Lecture[] → (chat, insights, highlights, quiz, flashcards)
+```
 
-### Cascade Deletes
-- Deleting a user → deletes profile, courses, lectures, etc.
+## Cascade Deletes
+- Deleting a user → deletes profile, courses, lectures, everything
 - Deleting a course → deletes all its lectures
-- Deleting a lecture → deletes chat, insights, quiz
-
-### JSONB Fields
-- `lectures.summary_data` - Gemini analysis output
-- `quiz_sessions.questions` - Generated quiz questions
-- `quiz_sessions.user_answers` - User's answers map
-
-### Audio Storage
-Audio is stored in Storage bucket, NOT in database. The `lectures.audio_url` field contains the path to the file in Storage.
+- Deleting a lecture → deletes chat_messages, insights, highlights, quiz_sessions, flashcard_sessions, concept_progress
